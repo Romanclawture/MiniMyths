@@ -40,9 +40,20 @@ visuals:
     epic digital painting, dramatic lighting, greek mythology art style,
     rich colors, cinematic composition, 16:9
 
+# Thumbnails
+thumbnail:
+  accent: "#FFB800"             # gold underline bar
+
 # Publishing
 publish:
   privacy: private              # private until we review the first uploads
   category_id: "24"             # Entertainment
   default_tags: [greek mythology, mythology, greek myths, history, animated story]
   cadence: monthly
+  description_footer: |
+    —
+    ⚡ MINI MYTHS — epic myths in minutes.
+    New myth every month. Subscribe so you don't miss the next one:
+    https://youtube.com/@Mini_Myths?sub_confirmation=1
+
+    #GreekMythology #Mythology #MiniMyths

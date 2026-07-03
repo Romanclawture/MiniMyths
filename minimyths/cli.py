@@ -134,6 +134,11 @@ def _cmd_produce(work_dir: Path, channel, draft=False):
     for section, path in outputs.items():
         print(f"  ✓ {section}: {path}")
 
+    from .visuals import generate_thumbnail
+
+    thumb = generate_thumbnail(script, work_dir, channel)
+    print(f"  ✓ thumbnail: {thumb}")
+
     if not draft:  # draft cuts don't advance the pipeline state
         from .sourcing.ledger import mark
 

@@ -38,11 +38,13 @@ Rules:
 
 Respond with ONLY a JSON object, no markdown fences, matching:
 {{"slug": "...", "title": "...", "description": "...", "tags": [...],
+  "thumbnail_text": "...",
   "main": {{"beats": [{{"narration": "...", "visual": "...", "seconds": 12}}]}},
   "short": {{"beats": [...]}}}}
 
 title: clickable but honest, <70 chars. description: 2-3 sentences + a question
 to drive comments. tags: 10-15. slug: lowercase-hyphenated.
+thumbnail_text: 2-4 punchy words for the thumbnail overlay (NOT the title).
 """
 
 

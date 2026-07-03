@@ -85,6 +85,23 @@ def test_validate_script_catches_problems():
     assert any("short: no beats" in p for p in problems)
 
 
+# --- thumbnails ---------------------------------------------------------------
+
+def test_thumbnail_generation(tmp_path):
+    from PIL import Image
+
+    from minimyths.visuals.thumbnail import SIZE, generate_thumbnail
+
+    script = {"title": "Test: A Story", "thumbnail_text": "NEVER LOOK AT HER"}
+    channel = {"name": "Mini Myths", "thumbnail": {"accent": "#FFB800"}}
+    out = generate_thumbnail(script, tmp_path, channel)
+
+    assert out.exists()
+    assert out.stat().st_size < 2 * 1024 * 1024  # YouTube limit
+    with Image.open(out) as img:
+        assert img.size == SIZE
+
+
 # --- ledger -----------------------------------------------------------------
 
 def test_ledger_next_story(tmp_path, monkeypatch):

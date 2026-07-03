@@ -24,13 +24,16 @@ def upload_video(video_path: Path, script: dict, channel: dict,
 
     youtube = build("youtube", "v3", credentials=_credentials())
 
+    pub_cfg = channel["publish"]
     title = script["title"]
     description = script["description"]
     if is_short:
         title = f"{title} #Shorts"
         description = f"{description}\n\n#Shorts #GreekMythology"
+    footer = pub_cfg.get("description_footer", "").strip()
+    if footer:
+        description = f"{description}\n\n{footer}"
 
-    pub_cfg = channel["publish"]
     status = {"privacyStatus": pub_cfg.get("privacy", "private"),
               "selfDeclaredMadeForKids": False}
     if publish_at:
@@ -54,7 +57,14 @@ def upload_video(video_path: Path, script: dict, channel: dict,
     response = None
     while response is None:
         _, response = request.next_chunk()
-    return response["id"]
+    video_id = response["id"]
+
+    thumb = video_path.parent / "thumbnail.jpg"
+    if not is_short and thumb.exists():  # Shorts don't use custom thumbnails
+        youtube.thumbnails().set(
+            videoId=video_id, media_body=MediaFileUpload(str(thumb))
+        ).execute()
+    return video_id
 
 
 def _credentials():
