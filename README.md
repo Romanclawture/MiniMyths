@@ -70,6 +70,10 @@ docs/                 # setup guides + research notes
 - [x] Repo + pipeline scaffold
 - [x] Story sourcing (curated backlog + Wikipedia trending)
 - [x] Script generator + Hercules script v1
+- [x] Perseus & Medusa script (episode 2)
+- [x] Draft mode (`produce --draft`): espeak voice + placeholder art for $0 review cuts
+- [x] Backlog picker + ledger (`minimyths next`, bare `minimyths run` auto-picks)
+- [x] Tests + CI
 - [ ] Voiceover pass on Hercules (pick voice, generate audio)
 - [ ] Image generation pass (pick style, generate scene images)
 - [ ] Assemble + review first video

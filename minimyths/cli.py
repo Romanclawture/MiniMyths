@@ -32,6 +32,8 @@ def main(argv=None):
 
     p = sub.add_parser("produce", parents=[common], help="voiceover + visuals + final videos")
     p.add_argument("dir", help="content dir containing script.json")
+    p.add_argument("--draft", action="store_true",
+                   help="review cut: espeak draft voice + placeholder art, $0 and fast")
 
     p = sub.add_parser("publish", parents=[common], help="upload finals to YouTube")
     p.add_argument("dir")
@@ -39,8 +41,11 @@ def main(argv=None):
     p.add_argument("--skip-short", action="store_true")
 
     p = sub.add_parser("run", parents=[common], help="script + produce + publish in one go")
-    p.add_argument("topic")
+    p.add_argument("topic", nargs="?",
+                   help="story topic; omit to auto-pick the next backlog story")
     p.add_argument("--wiki")
+
+    sub.add_parser("next", parents=[common], help="show pipeline status + next story")
 
     args = parser.parse_args(argv)
     channel = load_channel(args.channel)
@@ -50,14 +55,28 @@ def main(argv=None):
     elif args.command == "script":
         _cmd_script(args.topic, args.wiki, channel)
     elif args.command == "produce":
-        _cmd_produce(Path(args.dir), channel)
+        if args.draft:
+            channel["voiceover"] = {"backend": "espeak", "voice": "en-us"}
+            channel["visuals"]["image_backend"] = "placeholder"
+        _cmd_produce(Path(args.dir), channel, draft=args.draft)
     elif args.command == "publish":
         _cmd_publish(Path(args.dir), channel, args.at, args.skip_short)
     elif args.command == "run":
-        script_dir = _cmd_script(args.topic, args.wiki, channel)
+        topic, wiki = args.topic, args.wiki
+        if not topic:
+            from .sourcing.ledger import next_story
+
+            story = next_story(channel["genre"])
+            if not story:
+                sys.exit("Backlog exhausted — add stories to minimyths/sourcing/backlogs.py")
+            topic, wiki = story["title"], story.get("wikipedia")
+            print(f"Next up from backlog: {topic}")
+        script_dir = _cmd_script(topic, wiki, channel, backlog_title=topic)
         _cmd_produce(script_dir, channel)
         print("\nReview the finals, then:")
         print(f"  python -m minimyths publish {script_dir}")
+    elif args.command == "next":
+        _cmd_next(channel)
 
 
 def _cmd_source(args, channel):
@@ -75,14 +94,17 @@ def _cmd_source(args, channel):
             print(f"  {i:2d}. {story['title']}\n      {story['hook']}")
 
 
-def _cmd_script(topic, wiki, channel) -> Path:
+def _cmd_script(topic, wiki, channel, backlog_title="") -> Path:
     from .scripting import generate_script
+    from .sourcing.ledger import mark
 
     print(f"Generating script for: {topic} …")
     script = generate_script(topic, channel, wikipedia_title=wiki)
     out_dir = content_dir(script["slug"])
     path = out_dir / "script.json"
     path.write_text(json.dumps(script, indent=2))
+    mark(script["slug"], "scripted", title=script["title"],
+         backlog=backlog_title or topic)
     from .scripting.schema import word_count
 
     print(f"  ✓ {path}")
@@ -91,7 +113,7 @@ def _cmd_script(topic, wiki, channel) -> Path:
     return out_dir
 
 
-def _cmd_produce(work_dir: Path, channel):
+def _cmd_produce(work_dir: Path, channel, draft=False):
     script_path = work_dir / "script.json"
     if not script_path.exists():
         sys.exit(f"No script.json in {work_dir}")
@@ -112,6 +134,31 @@ def _cmd_produce(work_dir: Path, channel):
     for section, path in outputs.items():
         print(f"  ✓ {section}: {path}")
 
+    if not draft:  # draft cuts don't advance the pipeline state
+        from .sourcing.ledger import mark
+
+        mark(script["slug"], "produced", title=script["title"])
+
+
+def _cmd_next(channel):
+    from .sourcing.ledger import load_ledger, next_story
+
+    ledger = load_ledger()
+    if ledger:
+        print("Pipeline status:\n")
+        icons = {"scripted": "📝", "produced": "🎬", "published": "✅"}
+        for slug, e in sorted(ledger.items()):
+            url = f"  {e['published_url']}" if e.get("published_url") else ""
+            print(f"  {icons.get(e['status'], '?')} {e['status']:<10} {slug}{url}")
+        print()
+    story = next_story(channel["genre"])
+    if story:
+        print(f"Next up: {story['title']}")
+        print(f"  {story['hook']}")
+        print(f"\n  python -m minimyths run \"{story['title']}\" --wiki {story['wikipedia']}")
+    else:
+        print("Backlog exhausted — add stories to minimyths/sourcing/backlogs.py")
+
 
 def _cmd_publish(work_dir: Path, channel, publish_at, skip_short):
     script = json.loads((work_dir / "script.json").read_text())
@@ -121,6 +168,10 @@ def _cmd_publish(work_dir: Path, channel, publish_at, skip_short):
     print(f"Uploading {main_path} …")
     vid = upload_video(main_path, script, channel, publish_at=publish_at)
     print(f"  ✓ https://youtu.be/{vid}")
+    from .sourcing.ledger import mark
+
+    mark(script["slug"], "published", title=script["title"],
+         url=f"https://youtu.be/{vid}")
 
     short_path = work_dir / "final" / "short.mp4"
     if not skip_short and short_path.exists():

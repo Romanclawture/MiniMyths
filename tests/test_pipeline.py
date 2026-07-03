@@ -1,0 +1,113 @@
+"""Fast, dependency-light tests: schema, configs, backlogs, ledger, scripts.
+
+No network, no TTS, no rendering — safe for CI.
+"""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from minimyths.config import CHANNELS_DIR, CONTENT_DIR, load_channel
+from minimyths.scripting.schema import validate_script, word_count
+from minimyths.sourcing.backlogs import BACKLOGS, get_backlog
+
+REPO = Path(__file__).resolve().parent.parent
+
+
+# --- channel configs -------------------------------------------------------
+
+def channel_names():
+    return sorted(p.stem for p in CHANNELS_DIR.glob("*.yaml"))
+
+
+@pytest.mark.parametrize("name", channel_names())
+def test_channel_config_complete(name):
+    ch = load_channel(name)
+    for key in ("name", "genre", "script", "voiceover", "visuals", "publish"):
+        assert key in ch, f"{name}.yaml missing '{key}'"
+    assert ch["script"]["main_video"]["target_seconds"] > 0
+    assert ch["genre"] in BACKLOGS, f"no backlog for genre {ch['genre']}"
+
+
+def test_unknown_channel_raises():
+    with pytest.raises(FileNotFoundError):
+        load_channel("does-not-exist")
+
+
+# --- backlogs ---------------------------------------------------------------
+
+def test_backlog_entries_well_formed():
+    for genre, stories in BACKLOGS.items():
+        assert stories, f"{genre} backlog empty"
+        titles = [s["title"] for s in stories]
+        assert len(titles) == len(set(titles)), f"{genre} has duplicate titles"
+        for story in stories:
+            assert story["title"] and story["wikipedia"] and story["hook"]
+
+
+def test_get_backlog_unknown_genre():
+    with pytest.raises(KeyError):
+        get_backlog("underwater-basket-weaving")
+
+
+# --- committed scripts ------------------------------------------------------
+
+def committed_scripts():
+    return sorted(CONTENT_DIR.glob("*/script.json"))
+
+
+@pytest.mark.parametrize("path", committed_scripts(), ids=lambda p: p.parent.name)
+def test_committed_script_valid(path):
+    script = json.loads(path.read_text())
+    assert validate_script(script) == []
+    assert script["slug"] == path.parent.name
+    assert len(script["title"]) <= 100  # YouTube hard limit
+
+
+@pytest.mark.parametrize("path", committed_scripts(), ids=lambda p: p.parent.name)
+def test_committed_script_pacing(path):
+    """Narration must roughly fit the target length at a speakable pace."""
+    script = json.loads(path.read_text())
+    for section, lo, hi in (("main", 120, 170), ("short", 120, 180)):
+        words = word_count(script, section)
+        seconds = sum(b["seconds"] for b in script[section]["beats"])
+        wpm = words / (seconds / 60)
+        assert lo <= wpm <= hi, f"{section}: {wpm:.0f} wpm outside [{lo}, {hi}]"
+
+
+def test_validate_script_catches_problems():
+    assert validate_script({}) != []
+    broken = {"slug": "x", "title": "x", "description": "x", "tags": [],
+              "main": {"beats": [{"narration": "hi"}]}, "short": {"beats": []}}
+    problems = validate_script(broken)
+    assert any("missing visual" in p for p in problems)
+    assert any("short: no beats" in p for p in problems)
+
+
+# --- ledger -----------------------------------------------------------------
+
+def test_ledger_next_story(tmp_path, monkeypatch):
+    from minimyths.sourcing import ledger
+
+    monkeypatch.setattr(ledger, "LEDGER_PATH", tmp_path / "ledger.json")
+    genre = "greek_myths"
+    first = ledger.next_story(genre)
+    assert first == get_backlog(genre)[0]
+
+    ledger.mark("some-slug", "scripted", title="t", backlog=first["title"])
+    second = ledger.next_story(genre)
+    assert second == get_backlog(genre)[1]
+
+    with pytest.raises(ValueError):
+        ledger.mark("some-slug", "not-a-status")
+
+
+def test_committed_ledger_consistent():
+    from minimyths.sourcing.ledger import STATUSES, load_ledger
+
+    for slug, entry in load_ledger().items():
+        assert entry["status"] in STATUSES
+        assert (CONTENT_DIR / slug / "script.json").exists(), (
+            f"ledger entry '{slug}' has no committed script"
+        )

@@ -4,6 +4,8 @@ Backends (selected in channel config `voiceover.backend`):
 - elevenlabs: best quality, ~$5-22/mo. Needs ELEVENLABS_API_KEY.
 - kokoro:     free, local, surprisingly good. Recommended once installed.
 - piper:      free, local, fastest, lighter quality. Good for drafts.
+- espeak:     robotic draft voice, zero dependencies (apt/brew install
+              espeak-ng). Only for reviewing pacing/edit — never publish.
 
 See docs/tts-research.md for the comparison.
 """
@@ -43,6 +45,8 @@ def _get_backend(name: str):
         return _kokoro
     if name == "piper":
         return _piper
+    if name == "espeak":
+        return _espeak
     raise ValueError(f"Unknown voiceover backend: {name}")
 
 
@@ -95,6 +99,19 @@ def _piper(text: str, path: Path, voice: str) -> float:
     subprocess.run(
         ["piper", "--model", voice or "en_US-ryan-high", "--output_file", str(wav_path)],
         input=text, text=True, check=True,
+    )
+    _wav_to_mp3(wav_path, path)
+    return _audio_seconds(path)
+
+
+def _espeak(text: str, path: Path, voice: str) -> float:
+    """Draft-quality narration for reviewing the edit. Not for publishing."""
+    import subprocess
+
+    wav_path = path.with_suffix(".wav")
+    subprocess.run(
+        ["espeak-ng", "-v", voice or "en-us", "-s", "150", "-w", str(wav_path), text],
+        check=True, capture_output=True,
     )
     _wav_to_mp3(wav_path, path)
     return _audio_seconds(path)
