@@ -13,7 +13,7 @@ source → script → voiceover → visuals → assemble → publish
 | **Source** | Find great stories: curated myth backlog + Wikipedia most-viewed pages ranked by "interestingness" | Wikimedia APIs | $0 |
 | **Script** | Turn a story into a beat-by-beat video script (narration + visual prompt per scene) | Claude (Max subscription via `claude` CLI, or API) | ~$0 |
 | **Voiceover** | Narration audio per beat | Kokoro (free, local) / Piper (free, local) / ElevenLabs (premium) | $0–20/mo |
-| **Visuals** | One clip per beat | Ken Burns over AI images (default, reliable) / CogVideoX (local, experimental) | $0 |
+| **Visuals** | One clip per beat | Ken Burns over AI images (default, reliable); hero shots via Wan 2.2 / LTX-2 (open-source, local or rented GPU) | $0 |
 | **Assemble** | Stitch beats + audio + subtitles into 16:9 3-min video and 9:16 30-sec Short | FFmpeg | $0 |
 | **Publish** | Upload with metadata + scheduling | YouTube Data API | $0 |
 
@@ -62,7 +62,7 @@ docs/                 # setup guides + research notes
 
 - [docs/mac-mini-setup.md](docs/mac-mini-setup.md) — getting the pipeline running on the M4 Mac mini
 - [docs/tts-research.md](docs/tts-research.md) — comparison of ElevenLabs vs Kokoro vs Piper vs Chatterbox vs OmniVoice
-- [docs/video-generation.md](docs/video-generation.md) — why Ken Burns first, CogVideoX/Runway later
+- [docs/video-generation.md](docs/video-generation.md) — open-source video-gen research (Wan 2.2, LTX-2, Wan2GP, Draw Things, open-generative-ai) and the rollout strategy
 - [docs/youtube-setup.md](docs/youtube-setup.md) — YouTube API credentials + OAuth flow
 
 ## Roadmap
@@ -74,4 +74,6 @@ docs/                 # setup guides + research notes
 - [ ] Image generation pass (pick style, generate scene images)
 - [ ] Assemble + review first video
 - [ ] Publish Hercules to @Mini_Myths
+- [ ] Install open-generative-ai studio on the mini as a model audition bench
+- [ ] Hero-shot hybrid: Wan 2.2 (Draw Things) or LTX-2 (Wan2GP on rented GPU) for 2-3 key beats per video
 - [ ] Automate cadence (cron), then channel #2

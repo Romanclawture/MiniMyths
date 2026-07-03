@@ -35,7 +35,7 @@ voiceover:
 # Visuals
 visuals:
   image_backend: placeholder    # placeholder | diffusers | api  (see docs/video-generation.md)
-  motion_backend: ken_burns     # ken_burns | cogvideox
+  motion_backend: ken_burns     # ken_burns | wan2gp | ltx | draw_things (planned)
   style_suffix: >
     epic digital painting, dramatic lighting, greek mythology art style,
     rich colors, cinematic composition, 16:9

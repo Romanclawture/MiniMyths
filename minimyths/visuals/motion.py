@@ -3,7 +3,8 @@
 Default backend is `ken_burns`: slow zoom/pan over each image via FFmpeg's
 zoompan filter. It's what most successful faceless story channels actually
 use — reliable, instant, $0 — and it ships video #1 while generative video
-(CogVideoX/Runway) stays an upgrade path. See docs/video-generation.md.
+(Wan 2.2 / LTX-2 via Wan2GP or Draw Things) stays an upgrade path.
+See docs/video-generation.md.
 """
 
 import subprocess
@@ -19,10 +20,10 @@ def render_clips(script: dict, frames_dir: Path, audio_manifest: list[dict],
     Returns [{"section", "index", "path"}, ...].
     """
     backend = channel["visuals"].get("motion_backend", "ken_burns")
-    if backend == "cogvideox":
+    if backend != "ken_burns":
         raise NotImplementedError(
-            "CogVideoX backend is an upgrade path — see docs/video-generation.md. "
-            "Use ken_burns for now."
+            f"motion_backend '{backend}' is a planned upgrade path (wan2gp, ltx, "
+            "draw_things) — see docs/video-generation.md. Use ken_burns for now."
         )
 
     durations = {(m["section"], m["index"]): m["seconds"] for m in audio_manifest}
