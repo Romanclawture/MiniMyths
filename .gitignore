@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Secrets & credentials
+.env
+credentials/
+*.json.secret
+client_secret*.json
+token.json
+
+# Generated media (large; regenerate from script.json)
+content/*/audio/
+content/*/frames/
+content/*/clips/
+content/*/final/
+*.mp4
+*.mp3
+*.wav
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,48 @@
+# Channel: Mini Myths (@Mini_Myths)
+name: Mini Myths
+handle: "@Mini_Myths"
+genre: greek_myths
+description: >
+  Animated retellings of Greek mythology — heroes, monsters, and the gods
+  behaving badly. Three-minute stories, zero fluff.
+
+# Sourcing
+sourcing:
+  backlog: greek_myths          # curated list in minimyths/sourcing/backlogs.py
+  wikipedia_categories:         # used to filter trending pages for this genre
+    - Greek mythology
+    - Greek heroes
+    - Greek gods
+
+# Script style — injected into the Claude prompt
+script:
+  tone: >
+    Epic but playful. Hook in the first 5 seconds. Modern, punchy narration —
+    think Greeking Out meets a movie trailer. No academic hedging.
+  main_video:
+    target_seconds: 180
+    words_per_minute: 150
+  short:
+    target_seconds: 30
+    words_per_minute: 160
+
+# Voiceover
+voiceover:
+  backend: elevenlabs           # elevenlabs | kokoro | piper
+  voice: onyx-narrator          # backend-specific voice id/name
+  # kokoro fallback: voice am_michael
+
+# Visuals
+visuals:
+  image_backend: placeholder    # placeholder | diffusers | api  (see docs/video-generation.md)
+  motion_backend: ken_burns     # ken_burns | cogvideox
+  style_suffix: >
+    epic digital painting, dramatic lighting, greek mythology art style,
+    rich colors, cinematic composition, 16:9
+
+# Publishing
+publish:
+  privacy: private              # private until we review the first uploads
+  category_id: "24"             # Entertainment
+  default_tags: [greek mythology, mythology, greek myths, history, animated story]
+  cadence: monthly

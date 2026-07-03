@@ -1,0 +1,16 @@
+# Core
+requests>=2.31
+PyYAML>=6.0
+Pillow>=10.0
+
+# Script generation (optional if using `claude` CLI)
+anthropic>=0.40
+
+# Voiceover backends (install what you use)
+# kokoro>=0.9        # free local TTS — recommended default (uncomment on Mac mini)
+# piper-tts>=1.2     # free local TTS — fastest, lighter quality
+elevenlabs>=1.0      # premium TTS
+
+# YouTube publishing
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.1
