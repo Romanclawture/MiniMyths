@@ -36,13 +36,29 @@ def generate_images(script: dict, out_dir: Path, channel: dict) -> list[Path]:
     fast = channel["visuals"].get("image_quality", "final") == "fast"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    todo = [(section, i, beat)
+            for section in ("main", "short")
+            for i, beat in enumerate(script[section]["beats"])]
     paths = []
-    for section in ("main", "short"):
-        for i, beat in enumerate(script[section]["beats"]):
-            path = out_dir / f"{section}_{i:02d}.png"
+    for n, (section, i, beat) in enumerate(todo, 1):
+        path = out_dir / f"{section}_{i:02d}.png"
+        # cache: unchanged prompt+style+backend → keep the existing frame,
+        # so an interrupted or repeated produce only renders what changed
+        sidecar = path.with_suffix(".prompt.txt")
+        cache_key = _cache_key(beat, backend, pack, fast)
+        if path.exists() and sidecar.exists() and sidecar.read_text() == cache_key:
+            print(f"  [{n}/{len(todo)}] {section}:{i} (cached)", flush=True)
+        else:
+            print(f"  [{n}/{len(todo)}] {section}:{i} rendering …", flush=True)
             _render_beat(beat, path, SIZES[section], backend, pack, fast)
-            paths.append(path)
+            sidecar.write_text(cache_key)
+        paths.append(path)
     return paths
+
+
+def _cache_key(beat: dict, backend: str, pack: dict, fast: bool) -> str:
+    return "|".join([backend, str(fast), pack["name"],
+                     str(pack.get("lora")), beat["visual"]])
 
 
 def generate_one(script: dict, section: str, index: int, out_dir: Path,
@@ -54,6 +70,8 @@ def generate_one(script: dict, section: str, index: int, out_dir: Path,
     beat = script[section]["beats"][index]
     path = out_dir / f"{section}_{index:02d}.png"
     _render_beat(beat, path, SIZES[section], backend, pack, fast)
+    # rerolled frame becomes the cached one — produce won't overwrite it
+    path.with_suffix(".prompt.txt").write_text(_cache_key(beat, backend, pack, fast))
     return path
 
 
