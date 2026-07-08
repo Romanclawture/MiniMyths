@@ -35,7 +35,7 @@ voiceover:
 
 # Visuals
 visuals:
-  image_backend: placeholder    # placeholder | diffusers | api  (see docs/video-generation.md)
+  image_backend: diffusers    # placeholder | diffusers | api  (see docs/video-generation.md)
   image_quality: final          # final = SDXL 30 steps; fast = SDXL-Turbo previews
   motion_backend: ken_burns     # ken_burns | wan_i2v | ltx | draw_things (planned)
   style: painted-epic           # default style pack (config/styles.yaml);
