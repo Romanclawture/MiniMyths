@@ -28,9 +28,10 @@ script:
 
 # Voiceover
 voiceover:
-  backend: elevenlabs           # elevenlabs | kokoro | piper
-  voice: onyx-narrator          # backend-specific voice id/name
-  # kokoro fallback: voice am_michael
+  backend: kokoro               # kokoro | elevenlabs | piper | espeak (draft)
+  voice: am_michael             # audition alternatives: python -m minimyths audition
+  speed: 1.0                    # kokoro only; 0.95 = more gravitas, 1.05 = snappier
+  # elevenlabs: backend: elevenlabs, voice: onwK4e9ZLuTAKqWW03F9 (Daniel)
 
 # Visuals
 visuals:

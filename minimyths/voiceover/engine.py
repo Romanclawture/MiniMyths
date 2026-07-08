@@ -23,6 +23,11 @@ def generate_voiceover(script: dict, out_dir: Path, channel: dict) -> list[dict]
     backend_name = channel["voiceover"]["backend"]
     voice = channel["voiceover"].get("voice", "")
     synth = _get_backend(backend_name)
+    if backend_name == "kokoro":
+        import functools
+
+        speed = float(channel["voiceover"].get("speed", 1.0))
+        synth = functools.partial(_kokoro, speed=speed)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest = []
@@ -78,13 +83,20 @@ def _elevenlabs(text: str, path: Path, voice: str) -> float:
     return _audio_seconds(path)
 
 
-def _kokoro(text: str, path: Path, voice: str) -> float:
+_KOKORO_PIPELINE = None  # model load takes seconds; share it across beats
+
+
+def _kokoro(text: str, path: Path, voice: str, speed: float = 1.0) -> float:
+    global _KOKORO_PIPELINE
+    import numpy as np
     import soundfile as sf
     from kokoro import KPipeline
 
-    pipeline = KPipeline(lang_code="a")  # american english
-    chunks = [audio for _, _, audio in pipeline(text, voice=voice or "am_michael")]
-    import numpy as np
+    if _KOKORO_PIPELINE is None:
+        # lang_code 'a' = American English ('b' for British voices like bm_george)
+        _KOKORO_PIPELINE = KPipeline(lang_code=(voice or "am")[0])
+    chunks = [audio for _, _, audio in
+              _KOKORO_PIPELINE(text, voice=voice or "am_michael", speed=speed)]
 
     wav_path = path.with_suffix(".wav")
     sf.write(wav_path, np.concatenate(chunks), 24000)

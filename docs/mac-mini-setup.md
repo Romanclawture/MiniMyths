@@ -1,30 +1,31 @@
 # Running MiniMyths on the M4 Mac mini
 
-## Prereqs
+## One-command setup
 
 ```bash
-# Homebrew packages
-brew install ffmpeg python@3.12
-
-# Clone + env
 git clone https://github.com/Romanclawture/MiniMyths.git && cd MiniMyths
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+git checkout claude/project-progress-u922nd
+bash scripts/setup-mac.sh        # brew deps + venv + Kokoro + model warm-up
+source .venv/bin/activate
 ```
 
-## Backends to enable for production
+Kokoro (free local narration) is the default voiceover backend. Pick the
+channel voice by ear:
 
 ```bash
-# Free local TTS (recommended once auditioned — see docs/tts-research.md)
-pip install kokoro soundfile
+python -m minimyths audition     # renders the Hercules hook in 6 voices
+open content/_auditions          # listen, pick, set voiceover.voice in config
+```
 
-# Local image generation on Apple Silicon (SDXL-Turbo via mps)
+## Image generation (for real visuals instead of placeholders)
+
+```bash
 pip install torch diffusers transformers accelerate
 ```
 
-Then in `config/channels/greek_myths.yaml`:
-- `voiceover.backend: kokoro` (or keep `elevenlabs` + `export ELEVENLABS_API_KEY=…`)
-- `visuals.image_backend: diffusers`
+Then set `visuals.image_backend: diffusers` in `config/channels/greek_myths.yaml`.
+(ElevenLabs remains available: `voiceover.backend: elevenlabs` +
+`export ELEVENLABS_API_KEY=…`.)
 
 ## Claude script generation
 

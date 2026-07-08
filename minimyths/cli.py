@@ -47,6 +47,14 @@ def main(argv=None):
 
     sub.add_parser("next", parents=[common], help="show pipeline status + next story")
 
+    p = sub.add_parser("audition", parents=[common],
+                       help="render a sample line in candidate Kokoro voices")
+    p.add_argument("--text", default=(
+        "This is the strongest man who ever lived. The gods hated him before "
+        "he was even born. And the price for his freedom? Twelve impossible, "
+        "monster-filled, absolutely unfair chores."))
+    p.add_argument("--voices", default="am_michael,am_fenrir,am_adam,bm_george,bm_daniel,bm_fable")
+
     args = parser.parse_args(argv)
     channel = load_channel(args.channel)
 
@@ -77,6 +85,8 @@ def main(argv=None):
         print(f"  python -m minimyths publish {script_dir}")
     elif args.command == "next":
         _cmd_next(channel)
+    elif args.command == "audition":
+        _cmd_audition(args.text, args.voices.split(","))
 
 
 def _cmd_source(args, channel):
@@ -163,6 +173,27 @@ def _cmd_next(channel):
         print(f"\n  python -m minimyths run \"{story['title']}\" --wiki {story['wikipedia']}")
     else:
         print("Backlog exhausted — add stories to minimyths/sourcing/backlogs.py")
+
+
+def _cmd_audition(text: str, voices: list[str]):
+    """Same line, every candidate voice → content/_auditions/<voice>.mp3."""
+    try:
+        import kokoro  # noqa: F401
+    except ImportError:
+        sys.exit("Kokoro not installed — run `bash scripts/setup-mac.sh` "
+                 "(or `pip install kokoro soundfile`).")
+    import minimyths.voiceover.engine as engine
+    from .config import CONTENT_DIR
+
+    out_dir = CONTENT_DIR / "_auditions"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for voice in voices:
+        engine._KOKORO_PIPELINE = None  # brits and americans need different G2P
+        path = out_dir / f"{voice}.mp3"
+        seconds = engine._kokoro(text, path, voice)
+        print(f"  ✓ {voice:<12} {seconds:.1f}s  {path}")
+    print(f"\nListen back to back:  open {out_dir}")
+    print("Then set your pick in config/channels/greek_myths.yaml → voiceover.voice")
 
 
 def _cmd_publish(work_dir: Path, channel, publish_at, skip_short):
