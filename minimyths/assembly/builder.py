@@ -5,9 +5,18 @@ burned-in captions from the beat narration (faceless channels live and die
 by watchability-on-mute).
 """
 
-import shutil
 import subprocess
 from pathlib import Path
+
+
+def _video_size(path) -> tuple[int, int]:
+    out = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "v:0", "-show_entries",
+         "stream=width,height", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    w, h = out.split(",")
+    return int(w), int(h)
 
 
 def _ffmpeg(args: list) -> None:
@@ -73,12 +82,23 @@ def _assemble_section(script, section, clips, audio_manifest, work_dir, out):
         (a for a in audio_manifest if a["section"] == section), key=lambda a: a["index"]
     )
 
-    # 1. Mux narration onto each clip
-    muxed = []
-    for clip, audio in zip(section_clips, section_audio):
+    # 1. Per beat: composite the caption (PIL PNG + overlay — portable across
+    #    ffmpeg builds, no libass needed) and mux the narration
+    from .captions import caption_png
+
+    muxed, caption_files = [], []
+    for clip, audio, beat in zip(section_clips, section_audio, beats):
         piece = work_dir / f"muxed_{section}_{clip['index']:02d}.mp4"
+        size = _video_size(clip["path"])
+        cap = work_dir / f"caption_{section}_{clip['index']:02d}.png"
+        caption_png(beat["narration"], size, cap)
+        caption_files.append(cap)
         _ffmpeg(["ffmpeg", "-y", "-i", clip["path"], "-i", audio["path"],
-                 "-c:v", "copy", "-c:a", "aac", "-shortest", piece])
+                 "-i", cap,
+                 "-filter_complex", "[0:v][2:v]overlay=0:0[v]",
+                 "-map", "[v]", "-map", "1:a",
+                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                 "-shortest", piece])
         muxed.append(piece)
 
     # 2. Concat all beats
@@ -87,24 +107,13 @@ def _assemble_section(script, section, clips, audio_manifest, work_dir, out):
     joined = work_dir / f"joined_{section}.mp4"
     _ffmpeg(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list,
              "-c", "copy", joined])
+    joined.replace(out)
 
-    # 3. Burn captions — a captions failure must not kill a finished render
-    srt = work_dir / f"{section}.srt"
-    _write_srt(beats, section_audio, srt)
-    style = "FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,Outline=2,MarginV=40"
-    try:
-        # named filename= + quoted values: required by ffmpeg 8's stricter
-        # filtergraph parser, accepted by older versions too
-        _ffmpeg(["ffmpeg", "-y", "-i", joined,
-                 "-vf", f"subtitles=filename='{srt.resolve()}':force_style='{style}'",
-                 "-c:a", "copy", out])
-    except RuntimeError as e:
-        print(f"  ⚠ caption burn failed for {section} — delivering without "
-              f"burned captions (SRT kept at {srt})\n{e}")
-        shutil.copy(joined, out)
+    # SRT still written — uploadable to YouTube as closed captions
+    _write_srt(beats, section_audio, work_dir / f"{section}.srt")
 
-    # tidy intermediates (keep the .srt: uploadable as closed captions)
-    for p in [*muxed, concat_list, joined]:
+    # tidy intermediates
+    for p in [*muxed, *caption_files, concat_list]:
         p.unlink(missing_ok=True)
 
 
