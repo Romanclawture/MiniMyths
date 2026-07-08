@@ -6,12 +6,19 @@ set -euo pipefail
 echo "==> Checking Homebrew prerequisites"
 command -v brew >/dev/null || {
   echo 'Homebrew missing — install from https://brew.sh first'; exit 1; }
-for pkg in ffmpeg espeak-ng; do
+# python@3.12 pinned: kokoro→spacy→thinc→blis lack wheels on newer Pythons
+# (3.14 tries to compile them from source and fails on old Cython pins)
+for pkg in ffmpeg espeak-ng python@3.12; do
   brew list "$pkg" >/dev/null 2>&1 || brew install "$pkg"
 done
+PYTHON="$(brew --prefix python@3.12)/bin/python3.12"
 
-echo "==> Creating virtualenv"
-[ -d .venv ] || python3 -m venv .venv
+echo "==> Creating virtualenv (Python 3.12)"
+if [ -d .venv ] && ! .venv/bin/python --version 2>/dev/null | grep -q "3\.12"; then
+  echo "    existing .venv uses $(.venv/bin/python --version 2>&1) — recreating"
+  rm -rf .venv
+fi
+[ -d .venv ] || "$PYTHON" -m venv .venv
 source .venv/bin/activate
 pip install --quiet --upgrade pip
 
