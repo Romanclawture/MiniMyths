@@ -41,6 +41,14 @@ visuals:
   style: painted-epic           # default style pack (config/styles.yaml);
                                 # per-episode override via "style" in script.json
 
+# Assembly extras
+assembly:
+  # Drop a royalty-free track in assets/music/ (YouTube Audio Library is
+  # free, no attribution) and uncomment — it loops under the narration,
+  # auto-ducked whenever George speaks:
+  # music: assets/music/epic_theme.mp3
+  # music_db: -16
+
 # Thumbnails
 thumbnail:
   accent: "#FFB800"             # gold underline bar

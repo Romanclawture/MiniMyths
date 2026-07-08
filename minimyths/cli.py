@@ -57,6 +57,15 @@ def main(argv=None):
     p.add_argument("--style", required=True, help="target style pack (config/styles.yaml)")
     p.add_argument("--notes", help="extra art direction for the new visuals")
 
+    p = sub.add_parser("reroll", parents=[common],
+                       help="regenerate specific beat images (e.g. reroll <dir> main:4 short:1)")
+    p.add_argument("dir")
+    p.add_argument("beats", nargs="+", help="beats as section:index, e.g. main:4")
+
+    p = sub.add_parser("review", parents=[common],
+                       help="build review.html — every beat's frame, narration and timing")
+    p.add_argument("dir")
+
     p = sub.add_parser("audition", parents=[common],
                        help="render a sample line in candidate Kokoro voices")
     p.add_argument("--text", default=(
@@ -100,6 +109,10 @@ def main(argv=None):
         _cmd_audition(args.text, args.voices.split(","))
     elif args.command == "restyle":
         _cmd_restyle(Path(args.dir), channel, args.style, args.notes)
+    elif args.command == "reroll":
+        _cmd_reroll(Path(args.dir), channel, args.beats)
+    elif args.command == "review":
+        _cmd_review(Path(args.dir))
 
 
 def _cmd_source(args, channel):
@@ -154,7 +167,7 @@ def _cmd_produce(work_dir: Path, channel, draft=False):
     print("3/4 motion clips …")
     clips = render_clips(script, work_dir / "frames", manifest, work_dir / "clips", channel)
     print("4/4 assembly …")
-    outputs = assemble(script, clips, manifest, work_dir / "final")
+    outputs = assemble(script, clips, manifest, work_dir / "final", channel)
     for section, path in outputs.items():
         print(f"  ✓ {section}: {path}")
 
@@ -225,6 +238,54 @@ def _cmd_restyle(work_dir: Path, channel, style: str, notes):
     print(f"  ✓ {script_path} — visuals rewritten, narration untouched")
     print(f"\nNow re-render (existing voiceover is reused automatically):")
     print(f"  python -m minimyths produce {work_dir}")
+
+
+def _cmd_reroll(work_dir: Path, channel, beats: list[str]):
+    """Regenerate cherry-picked beat images, then re-run produce to see them."""
+    from .visuals.images import generate_one
+
+    script = json.loads((work_dir / "script.json").read_text())
+    for spec in beats:
+        try:
+            section, index = spec.split(":")
+            index = int(index)
+            script[section]["beats"][index]
+        except (ValueError, KeyError, IndexError):
+            sys.exit(f"Bad beat spec '{spec}' — use section:index, e.g. main:4")
+        path = generate_one(script, section, index, work_dir / "frames", channel)
+        print(f"  ✓ rerolled {spec} → {path}")
+    print(f"\nRe-render to pick up the new frames:\n  python -m minimyths produce {work_dir}")
+
+
+def _cmd_review(work_dir: Path):
+    """Contact sheet: every beat's frame + narration + timing in one HTML page."""
+    script = json.loads((work_dir / "script.json").read_text())
+    rows = []
+    for section in ("main", "short"):
+        rows.append(f"<h2>{section} — {sum(b['seconds'] for b in script[section]['beats'])}s target</h2>")
+        for i, beat in enumerate(script[section]["beats"]):
+            frame = work_dir / "frames" / f"{section}_{i:02d}.png"
+            img = (f'<img src="frames/{frame.name}" loading="lazy">'
+                   if frame.exists() else "<em>(no frame rendered yet)</em>")
+            rows.append(
+                f'<div class="beat">{img}<div><b>{section}:{i}</b> '
+                f'({beat["seconds"]}s)<p>{beat["narration"]}</p>'
+                f'<p class="v">🎨 {beat["visual"]}</p></div></div>'
+            )
+    html = (
+        "<!doctype html><meta charset='utf-8'>"
+        f"<title>{script['title']} — review</title>"
+        "<style>body{font-family:sans-serif;max-width:1100px;margin:2rem auto}"
+        ".beat{display:flex;gap:1rem;margin:1rem 0;border-bottom:1px solid #ddd;padding-bottom:1rem}"
+        ".beat img{width:320px;height:auto;border-radius:6px}"
+        ".v{color:#777;font-size:.85em}</style>"
+        f"<h1>{script['title']}</h1>" + "".join(rows)
+    )
+    out = work_dir / "review.html"
+    out.write_text(html)
+    print(f"  ✓ {out}\n  open {out}")
+    print("Spot a weak frame? Reroll it:  python -m minimyths reroll "
+          f"{work_dir} main:4")
 
 
 def _cmd_publish(work_dir: Path, channel, publish_at, skip_short):

@@ -38,20 +38,36 @@ def generate_images(script: dict, out_dir: Path, channel: dict) -> list[Path]:
 
     paths = []
     for section in ("main", "short"):
-        size = SIZES[section]
         for i, beat in enumerate(script[section]["beats"]):
             path = out_dir / f"{section}_{i:02d}.png"
-            prompt = f"{beat['visual']}, {suffix}" if suffix else beat["visual"]
-            if backend == "placeholder":
-                _placeholder(prompt, path, size)
-            elif backend == "diffusers":
-                _diffusers(prompt, path, size,
-                           negative=pack.get("negative", ""),
-                           lora=pack.get("lora"), fast=fast)
-            else:
-                raise ValueError(f"Unknown image backend: {backend}")
+            _render_beat(beat, path, SIZES[section], backend, pack, fast)
             paths.append(path)
     return paths
+
+
+def generate_one(script: dict, section: str, index: int, out_dir: Path,
+                 channel: dict) -> Path:
+    """Regenerate a single beat's image — the `reroll` command."""
+    backend = channel["visuals"].get("image_backend", "placeholder")
+    pack = resolve_style(script, channel)
+    fast = channel["visuals"].get("image_quality", "final") == "fast"
+    beat = script[section]["beats"][index]
+    path = out_dir / f"{section}_{index:02d}.png"
+    _render_beat(beat, path, SIZES[section], backend, pack, fast)
+    return path
+
+
+def _render_beat(beat: dict, path: Path, size: tuple[int, int],
+                 backend: str, pack: dict, fast: bool) -> None:
+    suffix = pack["suffix"].strip()
+    prompt = f"{beat['visual']}, {suffix}" if suffix else beat["visual"]
+    if backend == "placeholder":
+        _placeholder(prompt, path, size)
+    elif backend == "diffusers":
+        _diffusers(prompt, path, size, negative=pack.get("negative", ""),
+                   lora=pack.get("lora"), fast=fast)
+    else:
+        raise ValueError(f"Unknown image backend: {backend}")
 
 
 def _placeholder(prompt: str, path: Path, size: tuple[int, int]) -> None:

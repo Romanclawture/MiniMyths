@@ -21,14 +21,47 @@ def _ffmpeg(args: list) -> None:
 
 
 def assemble(script: dict, clips: list[dict], audio_manifest: list[dict],
-             final_dir: Path) -> dict:
+             final_dir: Path, channel: dict | None = None) -> dict:
     final_dir.mkdir(parents=True, exist_ok=True)
     outputs = {}
     for section in ("main", "short"):
         out = final_dir / f"{section}.mp4"
         _assemble_section(script, section, clips, audio_manifest, final_dir, out)
+        _add_music(out, channel or {})
         outputs[section] = out
     return outputs
+
+
+def _add_music(video: Path, channel: dict) -> None:
+    """Mix a looped music bed under the narration, auto-ducked.
+
+    Config (channel assembly section):
+      assembly:
+        music: assets/music/theme.mp3   # relative to repo root
+        music_db: -16                   # bed level before ducking
+    Silently skipped when unconfigured; warns when the file is missing.
+    """
+    cfg = (channel.get("assembly") or {})
+    if not cfg.get("music"):
+        return
+    from ..config import REPO_ROOT
+
+    music = REPO_ROOT / cfg["music"]
+    if not music.exists():
+        print(f"  ⚠ music bed skipped — {music} not found")
+        return
+    vol = float(cfg.get("music_db", -16))
+    tmp = video.with_name(f"tmp_{video.name}")
+    # narration ducks the bed via sidechain compression, then both are mixed
+    _ffmpeg([
+        "ffmpeg", "-y", "-i", video, "-stream_loop", "-1", "-i", music,
+        "-filter_complex",
+        f"[1:a]volume={vol}dB[bed];"
+        "[bed][0:a]sidechaincompress=threshold=0.03:ratio=8:attack=50:release=600[duck];"
+        "[0:a][duck]amix=inputs=2:duration=first:normalize=0[a]",
+        "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", tmp,
+    ])
+    tmp.replace(video)
 
 
 def _assemble_section(script, section, clips, audio_manifest, work_dir, out):
