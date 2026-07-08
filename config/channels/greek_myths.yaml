@@ -37,9 +37,14 @@ voiceover:
 visuals:
   image_backend: diffusers    # placeholder | diffusers | api  (see docs/video-generation.md)
   image_quality: final          # final = SDXL 30 steps; fast = SDXL-Turbo previews
-  motion_backend: ken_burns     # ken_burns | wan_i2v | ltx | draw_things (planned)
+  motion_backend: ken_burns     # ken_burns | draw_things (real animation, overnight)
   style: painted-epic           # default style pack (config/styles.yaml);
                                 # per-episode override via "style" in script.json
+  draw_things:                  # used when motion_backend: draw_things
+    url: http://127.0.0.1:7860
+    num_frames: 81              # ~3.4s of real motion per beat (24fps)
+    steps: 30
+    # extra: {}                 # passthrough for model-specific API knobs
 
 # Assembly extras
 assembly:

@@ -150,6 +150,10 @@ def _diffusers(prompt: str, path: Path, size: tuple[int, int],
         pipe = AutoPipelineForText2Image.from_pretrained(
             model, torch_dtype=torch.float16,
         ).to(device)
+        if device == "mps":
+            # 16GB unified memory is tight for SDXL fp16 — slicing prevents
+            # the multi-minute swap stalls seen on long runs
+            pipe.enable_attention_slicing()
         if lora_path:
             pipe.load_lora_weights(lora_path)
         _PIPE_CACHE.update(key=key, pipe=pipe)

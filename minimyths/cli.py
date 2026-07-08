@@ -66,6 +66,11 @@ def main(argv=None):
                        help="build review.html — every beat's frame, narration and timing")
     p.add_argument("dir")
 
+    p = sub.add_parser("animate", parents=[common],
+                       help="test-animate ONE beat via Draw Things (measure before overnight runs)")
+    p.add_argument("dir")
+    p.add_argument("beat", help="section:index, e.g. main:0")
+
     p = sub.add_parser("audition", parents=[common],
                        help="render a sample line in candidate Kokoro voices")
     p.add_argument("--text", default=(
@@ -113,6 +118,8 @@ def main(argv=None):
         _cmd_reroll(Path(args.dir), channel, args.beats)
     elif args.command == "review":
         _cmd_review(Path(args.dir))
+    elif args.command == "animate":
+        _cmd_animate(Path(args.dir), channel, args.beat)
 
 
 def _cmd_source(args, channel):
@@ -286,6 +293,44 @@ def _cmd_review(work_dir: Path):
     print(f"  ✓ {out}\n  open {out}")
     print("Spot a weak frame? Reroll it:  python -m minimyths reroll "
           f"{work_dir} main:4")
+
+
+def _cmd_animate(work_dir: Path, channel, beat_spec: str):
+    """Animate a single beat and report the render time — the go/no-go test
+    before pointing an overnight produce run at Draw Things."""
+    import time
+
+    from .visuals import animate
+    from .visuals.images import resolve_style
+
+    script = json.loads((work_dir / "script.json").read_text())
+    try:
+        section, index = beat_spec.split(":")
+        beat = script[section]["beats"][int(index)]
+    except (ValueError, KeyError, IndexError):
+        sys.exit(f"Bad beat spec '{beat_spec}' — use section:index, e.g. main:0")
+
+    frame = work_dir / "frames" / f"{section}_{int(index):02d}.png"
+    if not frame.exists():
+        sys.exit(f"No keyframe at {frame} — run produce (or reroll) first")
+
+    dt_cfg = channel["visuals"].get("draw_things", {})
+    animate.check_server(dt_cfg)
+    suffix = resolve_style(script, channel)["suffix"].strip()
+    out = work_dir / "clips" / f"animated_test_{section}_{int(index):02d}.mp4"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.with_suffix(".motion.txt").unlink(missing_ok=True)  # force fresh render
+
+    print(f"Animating {beat_spec} via Draw Things …")
+    t0 = time.monotonic()
+    animate.animated_clip(frame, out, beat["seconds"] + 0.4,
+                          f"{beat['visual']}, {suffix}",
+                          portrait=(section == "short"), cfg=dt_cfg)
+    minutes = (time.monotonic() - t0) / 60
+    print(f"  ✓ {out}  ({minutes:.1f} min)")
+    n_beats = len(script["main"]["beats"]) + len(script["short"]["beats"])
+    print(f"  Full episode estimate: ~{minutes * n_beats / 60:.1f} h for {n_beats} beats")
+    print(f"  Watch it:  open {out}")
 
 
 def _cmd_publish(work_dir: Path, channel, publish_at, skip_short):

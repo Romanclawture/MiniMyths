@@ -20,24 +20,44 @@ def render_clips(script: dict, frames_dir: Path, audio_manifest: list[dict],
     Returns [{"section", "index", "path"}, ...].
     """
     backend = channel["visuals"].get("motion_backend", "ken_burns")
-    if backend != "ken_burns":
+    if backend not in ("ken_burns", "draw_things"):
         raise NotImplementedError(
-            f"motion_backend '{backend}' is a planned upgrade path (wan2gp, ltx, "
-            "draw_things) — see docs/video-generation.md. Use ken_burns for now."
+            f"motion_backend '{backend}' is a planned upgrade path (wan2gp, ltx) "
+            "— see docs/video-generation.md. Use ken_burns or draw_things."
         )
+    if backend == "draw_things":
+        from . import animate
+        from .images import resolve_style
+
+        dt_cfg = channel["visuals"].get("draw_things", {})
+        animate.check_server(dt_cfg)
+        suffix = resolve_style(script, channel)["suffix"].strip()
 
     durations = {(m["section"], m["index"]): m["seconds"] for m in audio_manifest}
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    todo = [(section, i, beat)
+            for section in ("main", "short")
+            for i, beat in enumerate(script[section]["beats"])]
     clips = []
-    for section in ("main", "short"):
-        for i, beat in enumerate(script[section]["beats"]):
-            image = frames_dir / f"{section}_{i:02d}.png"
-            clip = out_dir / f"{section}_{i:02d}.mp4"
-            # pad narration with a beat of breathing room
-            seconds = durations.get((section, i), beat["seconds"]) + 0.4
+    for n, (section, i, beat) in enumerate(todo, 1):
+        image = frames_dir / f"{section}_{i:02d}.png"
+        clip = out_dir / f"{section}_{i:02d}.mp4"
+        # pad narration with a beat of breathing room
+        seconds = durations.get((section, i), beat["seconds"]) + 0.4
+        if backend == "draw_things":
+            print(f"  [{n}/{len(todo)}] animating {section}:{i} …", flush=True)
+            try:
+                animate.animated_clip(
+                    image, clip, seconds, f"{beat['visual']}, {suffix}",
+                    portrait=(section == "short"), cfg=dt_cfg)
+            except RuntimeError as e:
+                print(f"  ⚠ {section}:{i} animation failed — falling back to "
+                      f"Ken Burns for this beat\n{e}")
+                _ken_burns(image, clip, seconds, zoom_in=(i % 2 == 0))
+        else:
             _ken_burns(image, clip, seconds, zoom_in=(i % 2 == 0))
-            clips.append({"section": section, "index": i, "path": str(clip)})
+        clips.append({"section": section, "index": i, "path": str(clip)})
     return clips
 
 
