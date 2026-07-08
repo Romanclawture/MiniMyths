@@ -29,6 +29,8 @@ def main(argv=None):
     p = sub.add_parser("script", parents=[common], help="generate script.json for a topic")
     p.add_argument("topic")
     p.add_argument("--wiki", help="Wikipedia title for research context")
+    p.add_argument("--style", help="style pack for this episode (config/styles.yaml)")
+    p.add_argument("--notes", help="creative direction, woven into the script prompt")
 
     p = sub.add_parser("produce", parents=[common], help="voiceover + visuals + final videos")
     p.add_argument("dir", help="content dir containing script.json")
@@ -44,6 +46,8 @@ def main(argv=None):
     p.add_argument("topic", nargs="?",
                    help="story topic; omit to auto-pick the next backlog story")
     p.add_argument("--wiki")
+    p.add_argument("--style", help="style pack for this episode (config/styles.yaml)")
+    p.add_argument("--notes", help="creative direction, woven into the script prompt")
 
     sub.add_parser("next", parents=[common], help="show pipeline status + next story")
 
@@ -61,7 +65,7 @@ def main(argv=None):
     if args.command == "source":
         _cmd_source(args, channel)
     elif args.command == "script":
-        _cmd_script(args.topic, args.wiki, channel)
+        _cmd_script(args.topic, args.wiki, channel, style=args.style, notes=args.notes)
     elif args.command == "produce":
         if args.draft:
             channel["voiceover"] = {"backend": "espeak", "voice": "en-us"}
@@ -79,7 +83,8 @@ def main(argv=None):
                 sys.exit("Backlog exhausted — add stories to minimyths/sourcing/backlogs.py")
             topic, wiki = story["title"], story.get("wikipedia")
             print(f"Next up from backlog: {topic}")
-        script_dir = _cmd_script(topic, wiki, channel, backlog_title=topic)
+        script_dir = _cmd_script(topic, wiki, channel, backlog_title=topic,
+                                 style=args.style, notes=args.notes)
         _cmd_produce(script_dir, channel)
         print("\nReview the finals, then:")
         print(f"  python -m minimyths publish {script_dir}")
@@ -104,12 +109,13 @@ def _cmd_source(args, channel):
             print(f"  {i:2d}. {story['title']}\n      {story['hook']}")
 
 
-def _cmd_script(topic, wiki, channel, backlog_title="") -> Path:
+def _cmd_script(topic, wiki, channel, backlog_title="", style=None, notes=None) -> Path:
     from .scripting import generate_script
     from .sourcing.ledger import mark
 
     print(f"Generating script for: {topic} …")
-    script = generate_script(topic, channel, wikipedia_title=wiki)
+    script = generate_script(topic, channel, wikipedia_title=wiki,
+                             style=style, notes=notes)
     out_dir = content_dir(script["slug"])
     path = out_dir / "script.json"
     path.write_text(json.dumps(script, indent=2))

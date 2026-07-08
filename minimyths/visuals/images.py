@@ -31,7 +31,9 @@ def resolve_style(script: dict, channel: dict) -> dict:
 
 def generate_images(script: dict, out_dir: Path, channel: dict) -> list[Path]:
     backend = channel["visuals"].get("image_backend", "placeholder")
-    style = resolve_style(script, channel)["suffix"].strip()
+    pack = resolve_style(script, channel)
+    suffix = pack["suffix"].strip()
+    fast = channel["visuals"].get("image_quality", "final") == "fast"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     paths = []
@@ -39,11 +41,13 @@ def generate_images(script: dict, out_dir: Path, channel: dict) -> list[Path]:
         size = SIZES[section]
         for i, beat in enumerate(script[section]["beats"]):
             path = out_dir / f"{section}_{i:02d}.png"
-            prompt = f"{beat['visual']}, {style}" if style else beat["visual"]
+            prompt = f"{beat['visual']}, {suffix}" if suffix else beat["visual"]
             if backend == "placeholder":
                 _placeholder(prompt, path, size)
             elif backend == "diffusers":
-                _diffusers(prompt, path, size)
+                _diffusers(prompt, path, size,
+                           negative=pack.get("negative", ""),
+                           lora=pack.get("lora"), fast=fast)
             else:
                 raise ValueError(f"Unknown image backend: {backend}")
             paths.append(path)
@@ -85,15 +89,45 @@ def _wrap(text: str, width: int) -> list[str]:
     return lines[:8]
 
 
-def _diffusers(prompt: str, path: Path, size: tuple[int, int]) -> None:
-    """Local SDXL-Turbo via diffusers — targets Apple Silicon (mps)."""
+# SDXL generates at native buckets; we upscale to the video resolution after.
+SDXL_BUCKETS = {(1920, 1080): (1344, 768), (1080, 1920): (768, 1344)}
+
+_PIPE_CACHE = {"key": None, "pipe": None}  # model+LoRA loads take ~30s; reuse
+
+
+def _diffusers(prompt: str, path: Path, size: tuple[int, int],
+               negative: str = "", lora: str | None = None,
+               fast: bool = False) -> None:
+    """Local SDXL via diffusers on Apple Silicon (mps).
+
+    fast=False (default): full SDXL, 30 steps — the quality path.
+    fast=True: SDXL-Turbo, 4 steps — quick previews (negative/lora ignored;
+    Turbo doesn't use guidance).
+    LoRA: style packs may name a file in assets/loras/ (see styles.yaml).
+    """
     import torch
     from diffusers import AutoPipelineForText2Image
 
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
-    pipe = AutoPipelineForText2Image.from_pretrained(
-        "stabilityai/sdxl-turbo", torch_dtype=torch.float16,
-    ).to(device)
-    image = pipe(prompt=prompt, num_inference_steps=4, guidance_scale=0.0).images[0]
+    model = "stabilityai/sdxl-turbo" if fast else "stabilityai/stable-diffusion-xl-base-1.0"
+    lora_path = str(REPO_ROOT / "assets" / "loras" / lora) if lora else None
+    key = (model, lora_path)
+    if _PIPE_CACHE["key"] != key:
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
+        pipe = AutoPipelineForText2Image.from_pretrained(
+            model, torch_dtype=torch.float16,
+        ).to(device)
+        if lora_path:
+            pipe.load_lora_weights(lora_path)
+        _PIPE_CACHE.update(key=key, pipe=pipe)
+    pipe = _PIPE_CACHE["pipe"]
+
+    gen_size = SDXL_BUCKETS.get(size, size)
+    kwargs = dict(prompt=prompt, width=gen_size[0], height=gen_size[1])
+    if fast:
+        kwargs.update(num_inference_steps=4, guidance_scale=0.0)
+    else:
+        kwargs.update(num_inference_steps=30, guidance_scale=7.0,
+                      negative_prompt=negative or None)
+    image = pipe(**kwargs).images[0]
     image = image.resize(size)
     image.save(path)

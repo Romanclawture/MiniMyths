@@ -20,10 +20,34 @@ open content/_auditions          # listen, pick, set voiceover.voice in config
 ## Image generation (for real visuals instead of placeholders)
 
 ```bash
-pip install torch diffusers transformers accelerate
+pip install torch diffusers transformers accelerate peft
 ```
 
 Then set `visuals.image_backend: diffusers` in `config/channels/greek_myths.yaml`.
+First run downloads SDXL (~7GB). `image_quality: final` renders 30-step SDXL
+(≈30-60s/image on the M4 — a full episode is ~15 min of image time);
+`fast` uses SDXL-Turbo for quick previews.
+
+### Style LoRAs (the big quality lever for clay/yarn/8-bit/noir)
+
+A purpose-trained style LoRA beats prompt keywords every time. For each style
+you plan to use, grab an SDXL LoRA from civitai.com (e.g. search "claymation
+SDXL LoRA"), drop the `.safetensors` file in `assets/loras/`, and reference it
+in `config/styles.yaml` under that style's `lora:` key. That's it — the
+pipeline loads it automatically.
+
+## The idea-to-video workflow
+
+Your input is one command — topic, style, and any creative direction:
+
+```bash
+python -m minimyths run "Hercules" --style clay \
+  --notes "Play up the comedy. Hera should feel genuinely menacing though."
+```
+
+The pipeline scripts it (visuals written FOR the clay medium, your notes
+honored), voices it with George, renders style-locked keyframes, assembles
+both formats + thumbnail, and stops for your review before publishing.
 (ElevenLabs remains available: `voiceover.backend: elevenlabs` +
 `export ELEVENLABS_API_KEY=…`.)
 

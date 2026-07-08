@@ -35,6 +35,7 @@ Rules:
 - visual: a vivid image-generation prompt for that scene (subject + action +
   setting + mood). No text/words in the image.
 - seconds: rough duration; narration should fit it at ~150 wpm.
+{style_rule}{notes_rule}
 
 Respond with ONLY a JSON object, no markdown fences, matching:
 {{"slug": "...", "title": "...", "description": "...", "tags": [...],
@@ -48,14 +49,36 @@ thumbnail_text: 2-4 punchy words for the thumbnail overlay (NOT the title).
 """
 
 
-def generate_script(topic: str, channel: dict, wikipedia_title: str | None = None) -> dict:
-    """Generate and validate a script for `topic` using the channel's style."""
+def generate_script(topic: str, channel: dict, wikipedia_title: str | None = None,
+                    style: str | None = None, notes: str | None = None) -> dict:
+    """Generate and validate a script for `topic` using the channel's style.
+
+    style: style-pack name (config/styles.yaml) — beat visuals are written FOR
+    that look (a clay scene is staged differently than an 8-bit one).
+    notes: free-form creative direction from the producer.
+    """
     research = ""
     if wikipedia_title:
         try:
             research = fetch_summary(wikipedia_title)["extract"]
         except Exception:
             pass  # research is a bonus, not a requirement
+
+    style_rule = ""
+    if style:
+        from ..visuals.images import resolve_style
+
+        pack = resolve_style({"style": style}, channel)  # validates the name
+        style_rule = (
+            f"- This episode is rendered in a '{pack['name']}' visual style "
+            f"({pack['suffix'].strip()}). Write every visual prompt to play to "
+            "that medium's strengths — its textures, its framing, its charm. "
+            "Do NOT repeat the style keywords themselves; they are appended "
+            "automatically.\n"
+        )
+    notes_rule = ""
+    if notes:
+        notes_rule = f"- Creative direction from the producer (honor it): {notes}\n"
 
     cfg = channel["script"]
     main_s = cfg["main_video"]["target_seconds"]
@@ -69,10 +92,14 @@ def generate_script(topic: str, channel: dict, wikipedia_title: str | None = Non
         main_words=int(main_s / 60 * cfg["main_video"]["words_per_minute"]),
         short_seconds=short_s,
         short_words=int(short_s / 60 * cfg["short"]["words_per_minute"]),
+        style_rule=style_rule,
+        notes_rule=notes_rule,
     )
 
     raw = _ask_claude(prompt)
     script = _parse_json(raw)
+    if style:
+        script["style"] = style
     problems = validate_script(script)
     if problems:
         raise ValueError(f"Generated script failed validation: {problems}")

@@ -7,6 +7,10 @@
 #
 # suffix   → appended to every beat's visual prompt
 # negative → for image backends that accept negative prompts
+# lora     → optional .safetensors filename in assets/loras/ — a
+#            purpose-trained style LoRA beats prompt keywords every time.
+#            Find them on civitai.com (search the style + "SDXL LoRA"),
+#            drop the file in assets/loras/, add `lora: <filename>` here.
 
 painted-epic:
   suffix: >
