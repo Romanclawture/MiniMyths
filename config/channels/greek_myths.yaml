@@ -29,17 +29,16 @@ script:
 # Voiceover
 voiceover:
   backend: kokoro               # kokoro | elevenlabs | piper | espeak (draft)
-  voice: am_michael             # audition alternatives: python -m minimyths audition
+  voice: bm_george              # picked by audition 2026-07; re-audition: python -m minimyths audition
   speed: 1.0                    # kokoro only; 0.95 = more gravitas, 1.05 = snappier
   # elevenlabs: backend: elevenlabs, voice: onwK4e9ZLuTAKqWW03F9 (Daniel)
 
 # Visuals
 visuals:
   image_backend: placeholder    # placeholder | diffusers | api  (see docs/video-generation.md)
-  motion_backend: ken_burns     # ken_burns | wan2gp | ltx | draw_things (planned)
-  style_suffix: >
-    epic digital painting, dramatic lighting, greek mythology art style,
-    rich colors, cinematic composition, 16:9
+  motion_backend: ken_burns     # ken_burns | wan_i2v | ltx | draw_things (planned)
+  style: painted-epic           # default style pack (config/styles.yaml);
+                                # per-episode override via "style" in script.json
 
 # Thumbnails
 thumbnail:

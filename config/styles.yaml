@@ -1,0 +1,55 @@
+# Style packs — the visual identity of an episode.
+#
+# Style lives in the IMAGE stage (keyframes), not the video model: the
+# image model + these prompts lock the look, and the image-to-video step
+# just animates the keyframe while preserving its style. A script.json can
+# set "style: clay" to override the channel default.
+#
+# suffix   → appended to every beat's visual prompt
+# negative → for image backends that accept negative prompts
+
+painted-epic:
+  suffix: >
+    epic digital painting, dramatic lighting, rich colors, cinematic
+    composition, painterly brushwork
+  negative: photo, photorealistic, text, watermark
+
+clay:
+  suffix: >
+    claymation style, stop-motion clay animation, plasticine characters with
+    visible fingerprints and tool marks, handcrafted miniature sets, soft
+    studio lighting, Aardman-inspired charm
+  negative: photorealistic, smooth 3d render, text, watermark
+
+cartoon:
+  suffix: >
+    2D cartoon animation style, bold clean outlines, flat cel-shaded colors,
+    expressive squash-and-stretch character design, saturated palette,
+    Saturday-morning cartoon energy
+  negative: photorealistic, 3d render, text, watermark
+
+8bit:
+  suffix: >
+    8-bit pixel art style, retro video game sprite art, chunky pixels,
+    limited NES color palette, side-scroller composition, dithered shading
+  negative: smooth gradients, photorealistic, text, watermark
+
+game-modern:
+  suffix: >
+    modern AAA video game cinematic style, stylized PBR rendering, dramatic
+    volumetric lighting, detailed game-engine look, heroic character design
+  negative: flat, low-poly, text, watermark
+
+yarn:
+  suffix: >
+    knitted yarn and felt stop-motion style, characters and scenery made of
+    wool, visible stitches and fuzzy fibers, cozy handcrafted diorama,
+    warm soft lighting
+  negative: photorealistic, smooth surfaces, text, watermark
+
+noir:
+  suffix: >
+    black and white film noir style, high contrast chiaroscuro lighting,
+    deep shadows, dramatic silhouettes, 1940s cinema grain, expressionist
+    composition
+  negative: color, photorealistic, text, watermark

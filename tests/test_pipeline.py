@@ -85,6 +85,29 @@ def test_validate_script_catches_problems():
     assert any("short: no beats" in p for p in problems)
 
 
+# --- styles -------------------------------------------------------------------
+
+def test_style_packs_well_formed():
+    import yaml
+
+    from minimyths.visuals.images import STYLES_PATH
+
+    styles = yaml.safe_load(STYLES_PATH.read_text())
+    assert "painted-epic" in styles  # channel default must exist
+    for name, pack in styles.items():
+        assert pack.get("suffix", "").strip(), f"style '{name}' missing suffix"
+
+
+def test_resolve_style_precedence():
+    from minimyths.visuals.images import resolve_style
+
+    channel = {"visuals": {"style": "painted-epic"}}
+    assert resolve_style({}, channel)["name"] == "painted-epic"
+    assert resolve_style({"style": "clay"}, channel)["name"] == "clay"
+    with pytest.raises(KeyError):
+        resolve_style({"style": "vaporwave"}, channel)
+
+
 # --- thumbnails ---------------------------------------------------------------
 
 def test_thumbnail_generation(tmp_path):

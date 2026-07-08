@@ -44,6 +44,54 @@ with open-source generative video as a hero-shot upgrade path. Reasons:
 | **Draw Things** (free Mac app) | Metal-native image/video generation, 20-40% faster than ComfyUI on Apple Silicon; supports Wan 2.2; runs on a 16GB M4 mini. | **The Mac-native path.** Fine for occasional hero shots and image generation; too slow for volume video. |
 | **ComfyUI** | Node-based workflow runner, the community standard; MPS support with GGUF models. | Fallback/power-user option on the mini. |
 
+## Model choice for ANIMATED styles (decided 2026-07)
+
+Requirement: episodes in distinct animation styles — clay, cartoon, 8-bit /
+modern game, yarn, black-and-white noir, and more.
+
+**Key architectural insight: style is locked at the IMAGE stage, not the
+video stage.** Image models (SDXL/Flux + the enormous style-LoRA ecosystem)
+are far better at exotic styles than any video model prompted from text.
+So the pipeline generates a style-locked keyframe per beat, then uses an
+**image-to-video (I2V)** model whose only job is "animate this image while
+preserving its style." Style packs live in `config/styles.yaml`; each
+episode picks one via `"style"` in script.json.
+
+### The animator: Wan 2.2 I2V-A14B (primary)
+
+- Community consensus best open I2V: strongest style preservation and
+  prompt adherence for multi-subject scenes; responds to cinematography
+  language ("tracking shot", "dolly zoom")
+- Biggest ecosystem: ComfyUI workflows, style LoRAs (claymation, anime,
+  pixel), Wan2GP support, **and Draw Things support on the Mac mini**
+- Its "footage-like" motion is exactly right when the style is baked into
+  the keyframe
+
+### The sparring partners
+
+- **LTX-2.3** — 10-14× faster than Wan; motion reads slightly more
+  "animated"/smooth; weaker at exotic styles from text and smaller LoRA
+  ecosystem. Role: rapid-iteration draft animator, and possibly the
+  publish animator for the cartoon style if audition results are good.
+- **Index-AniSora (Bilibili, open)** — the animation specialist: trained on
+  10M+ anime/manga/2D samples, keyframe interpolation + localized
+  image-guided animation. The dark horse for pure cartoon/anime episodes;
+  worth auditioning even though it's tuned for 2D rather than clay/yarn.
+
+### Ruled out
+
+- HunyuanVideo 1.5 (photoreal faces are its edge — not our use case, heavy),
+  Mochi-1 / CogVideoX / SVD (superseded), AnimateDiff (style-flexible but
+  dated quality), ToonCrafter (niche in-betweening; revisit for 2D
+  interpolation later).
+
+### Audition plan (one rented 4090 session, ~$1-2 total)
+
+Run the same 3 keyframes (clay, 8-bit, yarn — Hercules beats 1/5/8) through
+Wan 2.2 I2V, LTX-2.3 I2V, and AniSora via Wan2GP/ComfyUI; compare style
+preservation, motion quality, and render time. Winner becomes
+`motion_backend: wan_i2v` (or `ltx`) in the channel config.
+
 ## Recommended strategy (in rollout order)
 
 1. **Ship videos 1-3 on stills + Ken Burns.** Zero blockers, zero cost.

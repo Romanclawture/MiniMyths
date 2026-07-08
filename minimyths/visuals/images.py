@@ -12,12 +12,26 @@ Main video renders at 1920x1080; shorts at 1080x1920.
 import hashlib
 from pathlib import Path
 
+import yaml
+
+from ..config import REPO_ROOT
+
 SIZES = {"main": (1920, 1080), "short": (1080, 1920)}
+STYLES_PATH = REPO_ROOT / "config" / "styles.yaml"
+
+
+def resolve_style(script: dict, channel: dict) -> dict:
+    """Style pack for this episode: script's `style` key beats channel default."""
+    styles = yaml.safe_load(STYLES_PATH.read_text())
+    name = script.get("style") or channel["visuals"].get("style", "painted-epic")
+    if name not in styles:
+        raise KeyError(f"Unknown style '{name}'. Available: {', '.join(sorted(styles))}")
+    return {"name": name, **styles[name]}
 
 
 def generate_images(script: dict, out_dir: Path, channel: dict) -> list[Path]:
     backend = channel["visuals"].get("image_backend", "placeholder")
-    style = channel["visuals"].get("style_suffix", "").strip()
+    style = resolve_style(script, channel)["suffix"].strip()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     paths = []
