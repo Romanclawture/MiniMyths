@@ -60,8 +60,10 @@ def _assemble_section(script, section, clips, audio_manifest, work_dir, out):
     _write_srt(beats, section_audio, srt)
     style = "FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,Outline=2,MarginV=40"
     try:
+        # named filename= + quoted values: required by ffmpeg 8's stricter
+        # filtergraph parser, accepted by older versions too
         _ffmpeg(["ffmpeg", "-y", "-i", joined,
-                 "-vf", f"subtitles={srt.resolve()}:force_style='{style}'",
+                 "-vf", f"subtitles=filename='{srt.resolve()}':force_style='{style}'",
                  "-c:a", "copy", out])
     except RuntimeError as e:
         print(f"  ⚠ caption burn failed for {section} — delivering without "
