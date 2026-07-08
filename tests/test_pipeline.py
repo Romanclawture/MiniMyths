@@ -85,6 +85,24 @@ def test_validate_script_catches_problems():
     assert any("short: no beats" in p for p in problems)
 
 
+# --- restyle ------------------------------------------------------------------
+
+def test_apply_restyle():
+    from minimyths.scripting.generator import apply_restyle
+
+    script = {"main": {"beats": [{"narration": "a", "visual": "old1"},
+                                 {"narration": "b", "visual": "old2"}]},
+              "short": {"beats": [{"narration": "c", "visual": "old3"}]}}
+    out = apply_restyle(script, {"main": ["new1", "new2"], "short": ["new3"]}, "clay")
+    assert [b["visual"] for b in out["main"]["beats"]] == ["new1", "new2"]
+    assert out["short"]["beats"][0]["visual"] == "new3"
+    assert out["main"]["beats"][0]["narration"] == "a"  # narration untouched
+    assert out["style"] == "clay"
+
+    with pytest.raises(ValueError, match="short"):
+        apply_restyle(script, {"main": ["x", "y"], "short": []}, "clay")
+
+
 # --- styles -------------------------------------------------------------------
 
 def test_style_packs_well_formed():

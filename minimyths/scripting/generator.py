@@ -106,6 +106,65 @@ def generate_script(topic: str, channel: dict, wikipedia_title: str | None = Non
     return script
 
 
+RESTYLE_TEMPLATE = """\
+You are the art director for "{channel_name}". An episode is being re-rendered
+in a new visual style: '{style_name}' ({style_suffix}).
+
+Rewrite ONLY the visual prompts below — the narration is final and must not
+change. Stage each scene to play to the new medium's strengths (its textures,
+framing, charm). Do NOT include the style keywords themselves; they are
+appended automatically. No text/words in the images.
+{notes_rule}
+Current beats:
+{beats_json}
+
+Respond with ONLY a JSON object, no markdown fences:
+{{"main": ["new visual for main beat 0", ...], "short": ["...", ...]}}
+Exactly one visual per beat, same order and count as the input.
+"""
+
+
+def restyle_script(script: dict, channel: dict, style: str,
+                   notes: str | None = None) -> dict:
+    """Rewrite an existing script's visual prompts for a new style pack.
+
+    Narration, beats, and timings are untouched, so already-generated
+    voiceover stays valid.
+    """
+    from ..visuals.images import resolve_style
+
+    pack = resolve_style({"style": style}, channel)  # validates the name
+    beats_json = json.dumps({
+        section: [{"narration": b["narration"], "visual": b["visual"]}
+                  for b in script[section]["beats"]]
+        for section in ("main", "short")
+    }, indent=2)
+    prompt = RESTYLE_TEMPLATE.format(
+        channel_name=channel["name"],
+        style_name=pack["name"],
+        style_suffix=pack["suffix"].strip(),
+        notes_rule=f"Producer notes: {notes}\n" if notes else "",
+        beats_json=beats_json,
+    )
+    visuals = _parse_json(_ask_claude(prompt))
+    return apply_restyle(script, visuals, style)
+
+
+def apply_restyle(script: dict, visuals: dict, style: str) -> dict:
+    """Swap in new visual prompts; count/order must match the beats exactly."""
+    for section in ("main", "short"):
+        beats = script[section]["beats"]
+        new = visuals.get(section, [])
+        if len(new) != len(beats):
+            raise ValueError(
+                f"{section}: got {len(new)} visuals for {len(beats)} beats"
+            )
+        for beat, visual in zip(beats, new):
+            beat["visual"] = visual
+    script["style"] = style
+    return script
+
+
 def _ask_claude(prompt: str) -> str:
     if shutil.which("claude"):
         result = subprocess.run(

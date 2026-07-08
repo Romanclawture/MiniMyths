@@ -51,6 +51,12 @@ def main(argv=None):
 
     sub.add_parser("next", parents=[common], help="show pipeline status + next story")
 
+    p = sub.add_parser("restyle", parents=[common],
+                       help="rewrite an episode's visuals in a new style (narration kept)")
+    p.add_argument("dir", help="content dir containing script.json")
+    p.add_argument("--style", required=True, help="target style pack (config/styles.yaml)")
+    p.add_argument("--notes", help="extra art direction for the new visuals")
+
     p = sub.add_parser("audition", parents=[common],
                        help="render a sample line in candidate Kokoro voices")
     p.add_argument("--text", default=(
@@ -92,6 +98,8 @@ def main(argv=None):
         _cmd_next(channel)
     elif args.command == "audition":
         _cmd_audition(args.text, args.voices.split(","))
+    elif args.command == "restyle":
+        _cmd_restyle(Path(args.dir), channel, args.style, args.notes)
 
 
 def _cmd_source(args, channel):
@@ -200,6 +208,23 @@ def _cmd_audition(text: str, voices: list[str]):
         print(f"  ✓ {voice:<12} {seconds:.1f}s  {path}")
     print(f"\nListen back to back:  open {out_dir}")
     print("Then set your pick in config/channels/greek_myths.yaml → voiceover.voice")
+
+
+def _cmd_restyle(work_dir: Path, channel, style: str, notes):
+    script_path = work_dir / "script.json"
+    if not script_path.exists():
+        sys.exit(f"No script.json in {work_dir}")
+    script = json.loads(script_path.read_text())
+    old = script.get("style", "painted-epic")
+
+    from .scripting.generator import restyle_script
+
+    print(f"Restyling {script['slug']}: {old} → {style} …")
+    script = restyle_script(script, channel, style, notes=notes)
+    script_path.write_text(json.dumps(script, indent=2))
+    print(f"  ✓ {script_path} — visuals rewritten, narration untouched")
+    print(f"\nNow re-render (existing voiceover is reused automatically):")
+    print(f"  python -m minimyths produce {work_dir}")
 
 
 def _cmd_publish(work_dir: Path, channel, publish_at, skip_short):

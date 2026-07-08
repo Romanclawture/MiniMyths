@@ -34,7 +34,15 @@ def generate_voiceover(script: dict, out_dir: Path, channel: dict) -> list[dict]
     for section in ("main", "short"):
         for i, beat in enumerate(script[section]["beats"]):
             path = out_dir / f"{section}_{i:02d}.mp3"
-            seconds = synth(beat["narration"], path, voice)
+            # narration sidecar = cache key: restyles keep narration, so the
+            # already-generated audio is reused instead of re-synthesized
+            sidecar = path.with_suffix(".txt")
+            cache_key = f"{backend_name}/{voice}\n{beat['narration']}"
+            if path.exists() and sidecar.exists() and sidecar.read_text() == cache_key:
+                seconds = _audio_seconds(path)
+            else:
+                seconds = synth(beat["narration"], path, voice)
+                sidecar.write_text(cache_key)
             manifest.append({
                 "section": section, "index": i,
                 "path": str(path), "seconds": seconds,
