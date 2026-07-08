@@ -5,8 +5,19 @@ burned-in captions from the beat narration (faceless channels live and die
 by watchability-on-mute).
 """
 
+import shutil
 import subprocess
 from pathlib import Path
+
+
+def _ffmpeg(args: list) -> None:
+    """Run ffmpeg, surfacing its stderr on failure instead of swallowing it."""
+    proc = subprocess.run([str(a) for a in args], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg exited {proc.returncode}: {' '.join(str(a) for a in args)}\n"
+            f"--- last output ---\n{proc.stderr[-1500:]}"
+        )
 
 
 def assemble(script: dict, clips: list[dict], audio_manifest: list[dict],
@@ -33,35 +44,31 @@ def _assemble_section(script, section, clips, audio_manifest, work_dir, out):
     muxed = []
     for clip, audio in zip(section_clips, section_audio):
         piece = work_dir / f"muxed_{section}_{clip['index']:02d}.mp4"
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", clip["path"], "-i", audio["path"],
-             "-c:v", "copy", "-c:a", "aac", "-shortest", str(piece)],
-            check=True, capture_output=True,
-        )
+        _ffmpeg(["ffmpeg", "-y", "-i", clip["path"], "-i", audio["path"],
+                 "-c:v", "copy", "-c:a", "aac", "-shortest", piece])
         muxed.append(piece)
 
     # 2. Concat all beats
     concat_list = work_dir / f"concat_{section}.txt"
     concat_list.write_text("".join(f"file '{p.resolve()}'\n" for p in muxed))
     joined = work_dir / f"joined_{section}.mp4"
-    subprocess.run(
-        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list),
-         "-c", "copy", str(joined)],
-        check=True, capture_output=True,
-    )
+    _ffmpeg(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list,
+             "-c", "copy", joined])
 
-    # 3. Burn captions
+    # 3. Burn captions — a captions failure must not kill a finished render
     srt = work_dir / f"{section}.srt"
     _write_srt(beats, section_audio, srt)
     style = "FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,Outline=2,MarginV=40"
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(joined),
-         "-vf", f"subtitles={srt}:force_style='{style}'",
-         "-c:a", "copy", str(out)],
-        check=True, capture_output=True,
-    )
+    try:
+        _ffmpeg(["ffmpeg", "-y", "-i", joined,
+                 "-vf", f"subtitles={srt.resolve()}:force_style='{style}'",
+                 "-c:a", "copy", out])
+    except RuntimeError as e:
+        print(f"  ⚠ caption burn failed for {section} — delivering without "
+              f"burned captions (SRT kept at {srt})\n{e}")
+        shutil.copy(joined, out)
 
-    # tidy intermediates
+    # tidy intermediates (keep the .srt: uploadable as closed captions)
     for p in [*muxed, concat_list, joined]:
         p.unlink(missing_ok=True)
 

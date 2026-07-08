@@ -166,15 +166,25 @@ def apply_restyle(script: dict, visuals: dict, style: str) -> dict:
 
 
 def _ask_claude(prompt: str) -> str:
+    cli_error = None
     if shutil.which("claude"):
         result = subprocess.run(
-            ["claude", "-p", prompt], capture_output=True, text=True, timeout=600,
+            ["claude", "-p"], input=prompt,  # prompt via stdin: no argv limits
+            capture_output=True, text=True, timeout=600,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout
-        raise RuntimeError(f"claude CLI failed: {result.stderr[:500]}")
+        cli_error = (
+            f"claude CLI exited {result.returncode}.\n"
+            f"stdout: {result.stdout[-500:] or '(empty)'}\n"
+            f"stderr: {result.stderr[-500:] or '(empty)'}\n"
+            "Hint: run `claude -p \"say hi\"` to check the CLI works — if not, "
+            "run `claude` once and log in / trust this folder."
+        )
 
     if os.environ.get("ANTHROPIC_API_KEY"):
+        if cli_error:
+            print("  claude CLI failed, falling back to the API …")
         import anthropic
 
         client = anthropic.Anthropic()
@@ -185,10 +195,10 @@ def _ask_claude(prompt: str) -> str:
         )
         return msg.content[0].text
 
-    raise RuntimeError(
+    raise RuntimeError(cli_error or (
         "No Claude backend available: install the `claude` CLI (Max subscription) "
         "or set ANTHROPIC_API_KEY."
-    )
+    ))
 
 
 def _parse_json(raw: str) -> dict:
