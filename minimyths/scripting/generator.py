@@ -37,13 +37,18 @@ Rules:
   close-up / wide establishing / low-angle / over-the-shoulder), subject +
   a single clear action, setting, lighting, and mood. Vary shot types
   across beats like a film editor would. No text/words in the image.
+- motion: one sentence describing what MOVES in the shot — character action,
+  environment motion, and a camera move (e.g. "he slams the axe down, dust
+  bursts up, storm clouds churn; slow push-in"). Video models animate only
+  what is described as moving.
 - seconds: rough duration; narration should fit it at ~150 wpm.
 {style_rule}{notes_rule}
 
 Respond with ONLY a JSON object, no markdown fences, matching:
 {{"slug": "...", "title": "...", "description": "...", "tags": [...],
   "thumbnail_text": "...",
-  "main": {{"beats": [{{"narration": "...", "visual": "...", "seconds": 12}}]}},
+  "main": {{"beats": [{{"narration": "...", "visual": "...",
+  "motion": "...", "seconds": 12}}]}},
   "short": {{"beats": [...]}}}}
 
 title: clickable but honest, <70 chars. description: 2-3 sentences + a question

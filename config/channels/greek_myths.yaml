@@ -37,7 +37,10 @@ voiceover:
 visuals:
   image_backend: diffusers    # placeholder | diffusers | api  (see docs/video-generation.md)
   image_quality: final          # final = SDXL 30 steps; fast = SDXL-Turbo previews
-  motion_backend: ken_burns     # ken_burns | draw_things (real animation, overnight)
+  motion_backend: ken_burns     # ken_burns | fal (hosted, quality) | draw_things (local)
+  fal:                          # used when motion_backend: fal — needs FAL_KEY env
+    model: fal-ai/kling-video/v2.5-turbo/pro/image-to-video   # $0.35 per 5s clip
+    duration: 5                 # seconds of real motion per beat
   style: painted-epic           # default style pack (config/styles.yaml);
                                 # per-episode override via "style" in script.json
   draw_things:                  # used when motion_backend: draw_things

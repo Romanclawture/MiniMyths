@@ -1,20 +1,22 @@
-"""Draw Things image-to-video backend — real animation, rendered locally.
+"""Image-to-video engines: fal.ai (hosted, quality) and Draw Things (local).
 
-Drives the Draw Things app's API server (Settings → API Server, HTTP on
-127.0.0.1:7860) running a Wan 2.2 5B image-to-video model. Each beat's
-keyframe becomes a genuinely animated clip; because I2V clips are shorter
-than most beats, the clip settles into a slow Ken Burns hold on its final
-frame for the remaining narration time.
+Both animate a beat's keyframe into a clip, then settle into a slow Ken
+Burns hold on the final frame for the remaining narration time. Clips cache
+on keyframe + prompt + params, so interrupted runs resume where they stopped.
 
-Clips cache on keyframe + prompt + params, so an interrupted overnight run
-resumes where it stopped. See docs/draw-things-setup.md.
+- fal: frontier-quality clips (Kling / Wan 14B class) in ~1-2 min each,
+  roughly $0.25-0.40 per 5s clip. Needs FAL_KEY. See docs/fal-setup.md.
+- draw_things: local Wan 2.2 5B via the Draw Things app's API server.
+  $0 but slow and modest quality on a 16GB mini. docs/draw-things-setup.md.
 """
 
 import base64
 import hashlib
 import json
+import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import requests
@@ -35,6 +37,84 @@ DEFAULTS = {
     "width": 1024, "height": 576,     # landscape; swapped for portrait
     "timeout": 7200,
 }
+
+
+FAL_DEFAULTS = {
+    "model": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+    "duration": "5",           # seconds of real motion per beat
+    "timeout": 900,
+    "poll_seconds": 5,
+}
+
+
+def check_fal(cfg: dict) -> None:
+    if not os.environ.get("FAL_KEY"):
+        raise SystemExit(
+            "FAL_KEY not set. Create an account at fal.ai, generate a key\n"
+            "(fal.ai/dashboard/keys), then:  export FAL_KEY=...\n"
+            "Full guide: docs/fal-setup.md"
+        )
+
+
+def fal_clip(keyframe: Path, out: Path, seconds: float, prompt: str,
+             portrait: bool, cfg: dict) -> None:
+    """Animate one keyframe via a hosted fal.ai I2V model (I2V + hold)."""
+    cfg = {**FAL_DEFAULTS, **cfg}
+    cache_key = _cache_key(keyframe, prompt, cfg)
+    sidecar = out.with_suffix(".motion.txt")
+    if out.exists() and sidecar.exists() and sidecar.read_text() == cache_key:
+        return
+
+    data_uri = ("data:image/png;base64,"
+                + base64.b64encode(keyframe.read_bytes()).decode())
+    payload = {"prompt": prompt, "image_url": data_uri,
+               "duration": str(cfg["duration"]), **cfg.get("extra", {})}
+    headers = {"Authorization": f"Key {os.environ['FAL_KEY']}"}
+
+    queued = requests.post(f"https://queue.fal.run/{cfg['model']}",
+                           json=payload, headers=headers, timeout=120)
+    if queued.status_code not in (200, 201, 202):
+        raise RuntimeError(
+            f"fal.ai rejected the request ({queued.status_code}): "
+            f"{queued.text[:600]}"
+        )
+    job = queued.json()
+    status_url = job["status_url"]
+    response_url = job["response_url"]
+
+    deadline = time.monotonic() + cfg["timeout"]
+    while True:
+        status = requests.get(status_url, headers=headers, timeout=60).json()
+        if status.get("status") == "COMPLETED":
+            break
+        if status.get("status") in ("FAILED", "CANCELLED", "ERROR"):
+            raise RuntimeError(f"fal.ai job failed: {json.dumps(status)[:600]}")
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"fal.ai job timed out after {cfg['timeout']}s")
+        time.sleep(cfg["poll_seconds"])
+
+    result = requests.get(response_url, headers=headers, timeout=120).json()
+    video_url = (result.get("video") or {}).get("url")
+    if not video_url:
+        raise RuntimeError(f"fal.ai response had no video url: {json.dumps(result)[:600]}")
+
+    target = _target_size(keyframe)
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        raw = td / "raw.mp4"
+        with requests.get(video_url, stream=True, timeout=600) as dl:
+            dl.raise_for_status()
+            with open(raw, "wb") as f:
+                for chunk in dl.iter_content(1 << 20):
+                    f.write(chunk)
+        motion_part = td / "motion.mp4"
+        w, h = target
+        _run(["ffmpeg", "-y", "-i", raw,
+              "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,"
+                     f"crop={w}:{h},fps={OUT_FPS}",
+              "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", motion_part])
+        _extend_with_hold(motion_part, td, seconds, out, target)
+    sidecar.write_text(cache_key)
 
 
 def check_server(cfg: dict) -> None:

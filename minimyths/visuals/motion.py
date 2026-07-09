@@ -20,17 +20,23 @@ def render_clips(script: dict, frames_dir: Path, audio_manifest: list[dict],
     Returns [{"section", "index", "path"}, ...].
     """
     backend = channel["visuals"].get("motion_backend", "ken_burns")
-    if backend not in ("ken_burns", "draw_things"):
+    if backend not in ("ken_burns", "draw_things", "fal"):
         raise NotImplementedError(
-            f"motion_backend '{backend}' is a planned upgrade path (wan2gp, ltx) "
-            "— see docs/video-generation.md. Use ken_burns or draw_things."
+            f"Unknown motion_backend '{backend}' — use ken_burns, fal, or "
+            "draw_things. See docs/video-generation.md."
         )
-    if backend == "draw_things":
+    if backend != "ken_burns":
         from . import animate
         from .images import resolve_style
 
-        dt_cfg = channel["visuals"].get("draw_things", {})
-        animate.check_server(dt_cfg)
+        if backend == "fal":
+            gen_cfg = channel["visuals"].get("fal", {})
+            animate.check_fal(gen_cfg)
+            engine = animate.fal_clip
+        else:
+            gen_cfg = channel["visuals"].get("draw_things", {})
+            animate.check_server(gen_cfg)
+            engine = animate.animated_clip
         suffix = resolve_style(script, channel)["suffix"].strip()
 
     durations = {(m["section"], m["index"]): m["seconds"] for m in audio_manifest}
@@ -45,12 +51,11 @@ def render_clips(script: dict, frames_dir: Path, audio_manifest: list[dict],
         clip = out_dir / f"{section}_{i:02d}.mp4"
         # pad narration with a beat of breathing room
         seconds = durations.get((section, i), beat["seconds"]) + 0.4
-        if backend == "draw_things":
+        if backend != "ken_burns":
             print(f"  [{n}/{len(todo)}] animating {section}:{i} …", flush=True)
             try:
-                animate.animated_clip(
-                    image, clip, seconds, f"{beat['visual']}, {suffix}",
-                    portrait=(section == "short"), cfg=dt_cfg)
+                engine(image, clip, seconds, motion_prompt(beat, suffix),
+                       portrait=(section == "short"), cfg=gen_cfg)
             except RuntimeError as e:
                 print(f"  ⚠ {section}:{i} animation failed — falling back to "
                       f"Ken Burns for this beat\n{e}")
@@ -59,6 +64,17 @@ def render_clips(script: dict, frames_dir: Path, audio_manifest: list[dict],
             _ken_burns(image, clip, seconds, zoom_in=(i % 2 == 0))
         clips.append({"section": section, "index": i, "path": str(clip)})
     return clips
+
+
+def motion_prompt(beat: dict, style_suffix: str) -> str:
+    """I2V models animate what's DESCRIBED as moving — the beat's optional
+    `motion` line matters more than the scene description."""
+    parts = [beat["visual"]]
+    if beat.get("motion"):
+        parts.append(beat["motion"])
+    if style_suffix:
+        parts.append(style_suffix)
+    return ". ".join(p.strip().rstrip(".") for p in parts)
 
 
 def _ken_burns(image: Path, out: Path, seconds: float, zoom_in: bool) -> None:
