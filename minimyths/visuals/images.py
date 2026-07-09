@@ -18,6 +18,8 @@ from ..config import REPO_ROOT
 
 SIZES = {"main": (1920, 1080), "short": (1080, 1920)}
 STYLES_PATH = REPO_ROOT / "config" / "styles.yaml"
+CHARACTERS_PATH = REPO_ROOT / "config" / "characters.yaml"
+CHARACTERS_DIR = REPO_ROOT / "assets" / "characters"
 
 
 def resolve_style(script: dict, channel: dict) -> dict:
@@ -27,6 +29,25 @@ def resolve_style(script: dict, channel: dict) -> dict:
     if name not in styles:
         raise KeyError(f"Unknown style '{name}'. Available: {', '.join(sorted(styles))}")
     return {"name": name, **styles[name]}
+
+
+def match_character(visual: str) -> dict | None:
+    """First cast member whose alias appears in the beat's visual prompt.
+
+    Returns {"slug", "image" (Path or None), "description"} or None.
+    """
+    if not CHARACTERS_PATH.exists():
+        return None
+    cast = yaml.safe_load(CHARACTERS_PATH.read_text()) or {}
+    text = visual.lower()
+    for slug, char in cast.items():
+        for alias in [slug, *char.get("aliases", [])]:
+            if alias.lower() in text:
+                image = CHARACTERS_DIR / f"{slug}.png"
+                return {"slug": slug,
+                        "image": image if image.exists() else None,
+                        "description": (char.get("description") or "").strip()}
+    return None
 
 
 def generate_images(script: dict, out_dir: Path, channel: dict) -> list[Path]:
@@ -57,8 +78,13 @@ def generate_images(script: dict, out_dir: Path, channel: dict) -> list[Path]:
 
 
 def _cache_key(beat: dict, backend: str, pack: dict, fast: bool) -> str:
+    char = match_character(beat["visual"])
+    char_sig = ""
+    if char:
+        img_mtime = char["image"].stat().st_mtime if char["image"] else 0
+        char_sig = f"{char['slug']}@{img_mtime}|{char['description']}"
     return "|".join([backend, str(fast), pack["name"],
-                     str(pack.get("lora")), beat["visual"]])
+                     str(pack.get("lora")), beat["visual"], char_sig])
 
 
 def generate_one(script: dict, section: str, index: int, out_dir: Path,
@@ -78,12 +104,19 @@ def generate_one(script: dict, section: str, index: int, out_dir: Path,
 def _render_beat(beat: dict, path: Path, size: tuple[int, int],
                  backend: str, pack: dict, fast: bool) -> None:
     suffix = pack["suffix"].strip()
-    prompt = f"{beat['visual']}, {suffix}" if suffix else beat["visual"]
+    char = match_character(beat["visual"])
+    parts = [beat["visual"]]
+    if char and char["description"]:
+        parts.append(f"({char['description']})")
+    if suffix:
+        parts.append(suffix)
+    prompt = ", ".join(parts)
     if backend == "placeholder":
         _placeholder(prompt, path, size)
     elif backend == "diffusers":
         _diffusers(prompt, path, size, negative=pack.get("negative", ""),
-                   lora=pack.get("lora"), fast=fast)
+                   lora=pack.get("lora"), fast=fast,
+                   character_image=char["image"] if char else None)
     else:
         raise ValueError(f"Unknown image backend: {backend}")
 
@@ -131,20 +164,23 @@ _PIPE_CACHE = {"key": None, "pipe": None}  # model+LoRA loads take ~30s; reuse
 
 def _diffusers(prompt: str, path: Path, size: tuple[int, int],
                negative: str = "", lora: str | None = None,
-               fast: bool = False) -> None:
+               fast: bool = False, character_image: Path | None = None) -> None:
     """Local SDXL via diffusers on Apple Silicon (mps).
 
     fast=False (default): full SDXL, 30 steps — the quality path.
     fast=True: SDXL-Turbo, 4 steps — quick previews (negative/lora ignored;
     Turbo doesn't use guidance).
     LoRA: style packs may name a file in assets/loras/ (see styles.yaml).
+    character_image: canonical reference conditioned in via IP-Adapter, so
+    the same character design appears in every frame.
     """
     import torch
     from diffusers import AutoPipelineForText2Image
 
     model = "stabilityai/sdxl-turbo" if fast else "stabilityai/stable-diffusion-xl-base-1.0"
     lora_path = str(REPO_ROOT / "assets" / "loras" / lora) if lora else None
-    key = (model, lora_path)
+    use_ip = character_image is not None
+    key = (model, lora_path, use_ip)
     if _PIPE_CACHE["key"] != key:
         device = "mps" if torch.backends.mps.is_available() else "cpu"
         pipe = AutoPipelineForText2Image.from_pretrained(
@@ -156,11 +192,20 @@ def _diffusers(prompt: str, path: Path, size: tuple[int, int],
             pipe.enable_attention_slicing()
         if lora_path:
             pipe.load_lora_weights(lora_path)
+        if use_ip:
+            pipe.load_ip_adapter("h94/IP-Adapter", subfolder="sdxl_models",
+                                 weight_name="ip-adapter_sdxl.safetensors")
         _PIPE_CACHE.update(key=key, pipe=pipe)
     pipe = _PIPE_CACHE["pipe"]
 
     gen_size = SDXL_BUCKETS.get(size, size)
     kwargs = dict(prompt=prompt, width=gen_size[0], height=gen_size[1])
+    if use_ip:
+        from PIL import Image
+
+        # 0.5: strong identity pull, still lets the prompt stage the scene
+        pipe.set_ip_adapter_scale(0.5)
+        kwargs["ip_adapter_image"] = Image.open(character_image).convert("RGB")
     if fast:
         kwargs.update(num_inference_steps=4, guidance_scale=0.0)
     else:

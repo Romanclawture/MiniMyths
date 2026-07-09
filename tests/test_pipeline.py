@@ -85,6 +85,32 @@ def test_validate_script_catches_problems():
     assert any("short: no beats" in p for p in problems)
 
 
+# --- characters ---------------------------------------------------------------
+
+def test_match_character():
+    from minimyths.visuals.images import match_character
+
+    hit = match_character("Wide shot: Hercules wrestles the lion in the dust")
+    assert hit and hit["slug"] == "hercules"
+    assert "lion-pelt headdress" in hit["description"]
+
+    hit = match_character("A hero emerging from a cave mouth into light")
+    assert hit and hit["slug"] == "hercules"  # alias match
+
+    assert match_character("A nine-headed serpent rising from a swamp") is None
+
+
+def test_cast_registry_well_formed():
+    import yaml
+
+    from minimyths.visuals.images import CHARACTERS_PATH
+
+    cast = yaml.safe_load(CHARACTERS_PATH.read_text())
+    for slug, char in cast.items():
+        assert char.get("description", "").strip(), f"{slug}: missing description"
+        assert char.get("aliases"), f"{slug}: missing aliases"
+
+
 # --- restyle ------------------------------------------------------------------
 
 def test_apply_restyle():

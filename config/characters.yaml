@@ -1,0 +1,20 @@
+# Cast registry — recurring characters with canonical reference images.
+#
+# For each character:
+#   aliases:     words in a beat's visual prompt that mean this character
+#   description: appended to the image prompt whenever the character appears
+#                (style-neutral — the style pack supplies clay/cartoon/etc.)
+# Reference image: assets/characters/<slug>.png (design it once, anywhere —
+# Midjourney, GPT-4o, SDXL — and the pipeline keeps every frame consistent
+# with it via IP-Adapter).
+#
+# Only the FIRST matching character's reference is used per beat.
+
+hercules:
+  aliases: [hercules, the hero, a hero, heracles]
+  description: >
+    Hercules: a hulking broad-shouldered man wearing a lion-pelt headdress
+    with the lion's face resting on top of his head, long wavy brown hair,
+    heavy brow and square jaw, a mustard-yellow one-shoulder tunic, a broad
+    leather belt with a round bronze buckle, leather wrist bracers, roman
+    sandals, and a knotted wooden club

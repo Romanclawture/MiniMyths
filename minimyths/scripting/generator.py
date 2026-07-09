@@ -36,7 +36,9 @@ Rules:
   cinematographer's shot description: SHOT TYPE + camera angle (extreme
   close-up / wide establishing / low-angle / over-the-shoulder), subject +
   a single clear action, setting, lighting, and mood. Vary shot types
-  across beats like a film editor would. No text/words in the image.
+  across beats like a film editor would. No text/words in the image. Refer
+  to recurring characters by NAME (e.g. "Hercules", not "a hero") — names
+  attach reference images that keep characters consistent across shots.
 - motion: one sentence describing what MOVES in the shot — character action,
   environment motion, and a camera move (e.g. "he slams the axe down, dust
   bursts up, storm clouds churn; slow push-in"). Video models animate only
