@@ -182,9 +182,16 @@ def _diffusers(prompt: str, path: Path, size: tuple[int, int],
     use_ip = character_image is not None
     key = (model, lora_path, use_ip)
     if _PIPE_CACHE["key"] != key:
+        from diffusers import AutoencoderKL
+
         device = "mps" if torch.backends.mps.is_available() else "cpu"
         pipe = AutoPipelineForText2Image.from_pretrained(
             model, torch_dtype=torch.float16,
+        ).to(device)
+        # stock SDXL VAE overflows in fp16 (NaNs -> black frames, hits mps
+        # hardest); the community fp16-fix VAE is the standard drop-in cure
+        pipe.vae = AutoencoderKL.from_pretrained(
+            "madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16,
         ).to(device)
         if device == "mps":
             # 16GB unified memory is tight for SDXL fp16 — slicing prevents
@@ -212,5 +219,15 @@ def _diffusers(prompt: str, path: Path, size: tuple[int, int],
         kwargs.update(num_inference_steps=30, guidance_scale=7.0,
                       negative_prompt=negative or None)
     image = pipe(**kwargs).images[0]
+    if image.convert("L").getextrema()[1] == 0:  # all-black: fp16 NaN decode
+        print("  ⚠ black frame from fp16 decode — retrying with fp32 VAE")
+        pipe.vae.to(torch.float32)
+        image = pipe(**kwargs).images[0]
+        pipe.vae.to(torch.float16)
+        if image.convert("L").getextrema()[1] == 0:
+            raise RuntimeError(
+                "Still decoding black frames with fp32 VAE — please report "
+                "this prompt/settings combination."
+            )
     image = image.resize(size)
     image.save(path)
