@@ -63,7 +63,8 @@ def animated_clip(keyframe: Path, out: Path, seconds: float, prompt: str,
     w, h = (cfg["height"], cfg["width"]) if portrait else (cfg["width"], cfg["height"])
     payload = {
         "prompt": prompt,
-        "init_images": [base64.b64encode(keyframe.read_bytes()).decode()],
+        # Draw Things requires the init image to match the output dimensions
+        "init_images": [_resized_b64(keyframe, w, h)],
         "width": w, "height": h,
         "num_frames": cfg["num_frames"],
         "steps": cfg["steps"],
@@ -95,6 +96,22 @@ def animated_clip(keyframe: Path, out: Path, seconds: float, prompt: str,
         _frames_to_clip(td, motion_part, cfg["fps"], target)
         _extend_with_hold(motion_part, td, seconds, out, target)
     sidecar.write_text(cache_key)
+
+
+def _resized_b64(keyframe: Path, w: int, h: int) -> str:
+    import io
+
+    from PIL import Image
+
+    with Image.open(keyframe) as img:
+        scale = max(w / img.width, h / img.height)
+        img = img.convert("RGB").resize(
+            (round(img.width * scale), round(img.height * scale)))
+        left, top = (img.width - w) // 2, (img.height - h) // 2
+        img = img.crop((left, top, left + w, top + h))
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 def _cache_key(keyframe: Path, prompt: str, cfg: dict) -> str:
