@@ -37,12 +37,14 @@ def check_server(cfg: dict) -> None:
     url = {**DEFAULTS, **cfg}["url"]
     try:
         requests.get(url, timeout=10)
-    except requests.RequestException as e:
-        raise RuntimeError(
-            f"Draw Things API server not reachable at {url}. Open Draw Things, "
-            "enable Settings → API Server (HTTP), load the Wan 2.2 5B I2V "
-            "model, and keep the app open. See docs/draw-things-setup.md."
-        ) from e
+    except requests.RequestException:
+        raise SystemExit(
+            f"Draw Things API server not reachable at {url}.\n"
+            "In Draw Things: Settings → API Server → enable (HTTP, port 7860),\n"
+            "select the Wan 2.2 5B model in the app, and keep it open.\n"
+            f"Check with:  curl {url}/\n"
+            "Full guide: docs/draw-things-setup.md"
+        ) from None
 
 
 def animated_clip(keyframe: Path, out: Path, seconds: float, prompt: str,
