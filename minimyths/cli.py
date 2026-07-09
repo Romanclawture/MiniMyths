@@ -61,6 +61,7 @@ def main(argv=None):
                        help="regenerate specific beat images (e.g. reroll <dir> main:4 short:1)")
     p.add_argument("dir")
     p.add_argument("beats", nargs="+", help="beats as section:index, e.g. main:4")
+    p.add_argument("--style", help="override style pack for these frames (e.g. clay)")
 
     p = sub.add_parser("review", parents=[common],
                        help="build review.html — every beat's frame, narration and timing")
@@ -70,6 +71,7 @@ def main(argv=None):
                        help="test-animate ONE beat via Draw Things (measure before overnight runs)")
     p.add_argument("dir")
     p.add_argument("beat", help="section:index, e.g. main:0")
+    p.add_argument("--style", help="override style pack for the motion prompt (e.g. clay)")
 
     p = sub.add_parser("audition", parents=[common],
                        help="render a sample line in candidate Kokoro voices")
@@ -115,11 +117,11 @@ def main(argv=None):
     elif args.command == "restyle":
         _cmd_restyle(Path(args.dir), channel, args.style, args.notes)
     elif args.command == "reroll":
-        _cmd_reroll(Path(args.dir), channel, args.beats)
+        _cmd_reroll(Path(args.dir), channel, args.beats, style=args.style)
     elif args.command == "review":
         _cmd_review(Path(args.dir))
     elif args.command == "animate":
-        _cmd_animate(Path(args.dir), channel, args.beat)
+        _cmd_animate(Path(args.dir), channel, args.beat, style=args.style)
 
 
 def _cmd_source(args, channel):
@@ -247,11 +249,13 @@ def _cmd_restyle(work_dir: Path, channel, style: str, notes):
     print(f"  python -m minimyths produce {work_dir}")
 
 
-def _cmd_reroll(work_dir: Path, channel, beats: list[str]):
+def _cmd_reroll(work_dir: Path, channel, beats: list[str], style=None):
     """Regenerate cherry-picked beat images, then re-run produce to see them."""
     from .visuals.images import generate_one
 
     script = json.loads((work_dir / "script.json").read_text())
+    if style:
+        script["style"] = style  # in-memory override, script.json untouched
     for spec in beats:
         try:
             section, index = spec.split(":")
@@ -295,7 +299,7 @@ def _cmd_review(work_dir: Path):
           f"{work_dir} main:4")
 
 
-def _cmd_animate(work_dir: Path, channel, beat_spec: str):
+def _cmd_animate(work_dir: Path, channel, beat_spec: str, style=None):
     """Animate a single beat and report the render time — the go/no-go test
     before pointing an overnight produce run at Draw Things."""
     import time
@@ -304,6 +308,8 @@ def _cmd_animate(work_dir: Path, channel, beat_spec: str):
     from .visuals.images import resolve_style
 
     script = json.loads((work_dir / "script.json").read_text())
+    if style:
+        script["style"] = style  # in-memory override, script.json untouched
     try:
         section, index = beat_spec.split(":")
         beat = script[section]["beats"][int(index)]
