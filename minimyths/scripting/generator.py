@@ -32,8 +32,11 @@ Produce TWO scripts:
 Rules:
 - Break each script into beats: one beat = one visual scene (main: 10-16 beats, short: 3-5).
 - narration: spoken text only. No stage directions. Hook hard in beat 1.
-- visual: a vivid image-generation prompt for that scene (subject + action +
-  setting + mood). No text/words in the image.
+- visual: a vivid image-generation prompt for that scene. Write it like a
+  cinematographer's shot description: SHOT TYPE + camera angle (extreme
+  close-up / wide establishing / low-angle / over-the-shoulder), subject +
+  a single clear action, setting, lighting, and mood. Vary shot types
+  across beats like a film editor would. No text/words in the image.
 - seconds: rough duration; narration should fit it at ~150 wpm.
 {style_rule}{notes_rule}
 
@@ -112,8 +115,11 @@ in a new visual style: '{style_name}' ({style_suffix}).
 
 Rewrite ONLY the visual prompts below — the narration is final and must not
 change. Stage each scene to play to the new medium's strengths (its textures,
-framing, charm). Do NOT include the style keywords themselves; they are
-appended automatically. No text/words in the images.
+framing, charm). Write each visual like a cinematographer's shot description:
+SHOT TYPE + angle, subject + one clear action, setting, lighting, mood —
+varying shot types across beats like a film editor would. Do NOT include the
+style keywords themselves; they are appended automatically. No text/words in
+the images.
 {notes_rule}
 Current beats:
 {beats_json}
