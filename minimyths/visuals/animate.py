@@ -28,10 +28,11 @@ from .motion import _ken_burns
 # Wan 2.2 5B is trained at 24 fps, up to 1280x704-class resolutions.
 DEFAULTS = {
     "url": "http://127.0.0.1:7860",
-    "num_frames": 49,          # ~2s of real motion per beat
+    "num_frames": 49,          # ~2s of real motion per beat (Wan wants 4k+1)
     "fps": 24,
     "steps": 20,
-    "width": 960, "height": 528,      # landscape; swapped for portrait
+    # Draw Things requires 64-px increments; 1024x576 is exact 16:9
+    "width": 1024, "height": 576,     # landscape; swapped for portrait
     "timeout": 7200,
 }
 
@@ -70,7 +71,13 @@ def animated_clip(keyframe: Path, out: Path, seconds: float, prompt: str,
     }
     resp = requests.post(f"{cfg['url']}/sdapi/v1/img2img", json=payload,
                          timeout=cfg["timeout"])
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        sent = {k: v for k, v in payload.items() if k != "init_images"}
+        raise RuntimeError(
+            f"Draw Things rejected the request ({resp.status_code}).\n"
+            f"Server said: {resp.text[:800] or '(empty body)'}\n"
+            f"Payload (minus image data): {json.dumps(sent)}"
+        )
     frames = resp.json().get("images", [])
     if len(frames) < 2:
         raise RuntimeError(
