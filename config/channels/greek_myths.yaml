@@ -42,8 +42,10 @@ visuals:
                                 # per-episode override via "style" in script.json
   draw_things:                  # used when motion_backend: draw_things
     url: http://127.0.0.1:7860
-    num_frames: 81              # ~3.4s of real motion per beat (24fps)
-    steps: 30
+    num_frames: 49              # ~2s real motion/beat; 81 ≈ 3.4s (more render time)
+    steps: 20                   # 30 = higher quality, ~1.5x slower
+    width: 960                  # 1280x704 = full quality if memory allows
+    height: 528
     # extra: {}                 # passthrough for model-specific API knobs
 
 # Assembly extras

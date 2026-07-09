@@ -22,13 +22,16 @@ import requests
 from .motion import FPS as OUT_FPS
 from .motion import _ken_burns
 
+# Conservative first-run defaults for a 16GB M4 mini — measure with
+# `minimyths animate`, then raise num_frames/steps/resolution in the channel
+# config's draw_things section as time and memory allow.
+# Wan 2.2 5B is trained at 24 fps, up to 1280x704-class resolutions.
 DEFAULTS = {
     "url": "http://127.0.0.1:7860",
-    # Wan 2.2 5B is trained at 24 fps, 1280x704-class resolutions
-    "num_frames": 81,          # ~3.4s of real motion per beat
+    "num_frames": 49,          # ~2s of real motion per beat
     "fps": 24,
-    "steps": 30,
-    "width": 1280, "height": 704,     # landscape; swapped for portrait
+    "steps": 20,
+    "width": 960, "height": 528,      # landscape; swapped for portrait
     "timeout": 7200,
 }
 
